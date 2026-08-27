@@ -1,5 +1,75 @@
 # Progress
 
+## Phase 2 — Scope defense (2026-08-27)
+
+Paste a later message from the client; get back a factual list of where it
+differs from the record, and three equal answers per difference.
+
+**What shipped**
+
+- `findScopeFlags` prompt, `validateScopeFlags`, `runScopeCheck`, and a
+  `ScopeDefense` screen with the follow-up message on the left and the
+  differences on the right, quote highlighting included.
+- **Bill it / Absorb it / Dismiss it are the same button.** Same size, same
+  border, same row. Styling one as primary would be the tool having an opinion
+  about which answer is right, and absorbing is what usually happens.
+- Change orders (templated, no API call) that restate the work and the price and
+  never mention why it was flagged.
+- Absorbed work is logged with a value and a private note, and the running
+  absorbed total is shown in the app.
+- 41 new checks; 109 in total.
+
+**Decisions**
+
+- *Neutrality is checked, not requested.* The prompt asks for factual wording and
+  the validator then tests for it. A note that characterises the client is
+  replaced with a neutral one and the substitution is disclosed — showing the
+  model's wording with a caveat underneath still shows it. A characterisation in
+  `whatWasAsked` drops the flag entirely: that field ends up on a change order
+  the client reads, and there is no safe way to rewrite editorial into an
+  invoice line.
+- *No quote, no flag.* `ScopeFlag` gained `source`. `whatWasAsked` has to be
+  clean enough for an invoice line, so it cannot double as the provenance quote.
+- *A price with no basis is dropped.* §8 forbids a number the user cannot trace,
+  and that does not stop applying because the model sounded confident.
+- *One editable number per flag.* `suggestedPrice` and `estimatedValue` stay
+  separate on the model so the value freezes at the moment of the decision, but
+  the screen shows one field. Editing it clears `priceBasis` — a basis that
+  described the model's number is a lie once the user types their own.
+- *Absorbed work is listed in the summary but never priced there.* What the
+  client got is worth writing down; what it was worth is the user's own
+  accounting. The private note never appears in any output.
+- *The demo returns three flags and no prices.* The hero record prices the reels
+  as one 2k lump with no per-unit rate, so nothing in it supports pricing a
+  cutdown. Handing the user an empty box is the honest answer, and it is the
+  demonstration: the tool would rather show nothing than invent a number.
+- *`parseFollowUp` forces every block to the client side.* Letting the parser
+  alternate would attribute half a pasted follow-up to the user and then flag
+  their own words as a difference.
+
+**A bug the tests found in the tests**
+
+`check('...never prints 0,00 €', !summary.includes('0,00 €'))` had been passing
+since Phase 1 and meant nothing. Two reasons at once: `formatEuros` separates
+with a non-breaking space, so the literal never matched anything; and `2 000,00 €`
+*contains* `0,00 €`, so the assertion would have been useless even with the right
+space. Now compared line by line against `formatEuros(0)`.
+
+**Still open**
+
+- Not verified in a browser or against a real key. Same blocker: the GitHub repo
+  does not exist, so nothing has run on a live Pages URL.
+- The priced path (`priceBasis` populated) is covered by unit checks but never
+  appears in Demo Mode, because the hero record has no per-unit rate to derive
+  from. It will show up the first time someone uses a record that does.
+- Undo restores a flag to `open` and removes the absorbed row, but a flag that
+  was billed and then undone leaves no trace. Fine now; revisit if Phase 3's
+  invoices start referencing flags.
+
+**Next:** Phase 3 — outputs.
+
+---
+
 ## Restructure — Backpay is a record, not an invoicing tool (2026-08-27)
 
 The concept was stress-tested and repositioned before more features landed.
