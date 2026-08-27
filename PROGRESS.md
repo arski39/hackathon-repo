@@ -1,5 +1,49 @@
 # Progress
 
+## Spec amendment — client memory and inbox connection (2026-08-27)
+
+Not a phase. A decision, recorded so the repo stops contradicting itself.
+
+**What changed**
+
+- §1's out-of-scope list had "email OAuth" on it. It has been removed
+  deliberately, on the spec owner's call. Read-only Gmail connection is now a
+  planned feature.
+- New §12 sets the terms it has to meet: read scopes only, never a send scope;
+  no backend; nothing leaves the browser; import is explicit and reversible;
+  the pasted-thread path and Demo Mode never depend on it.
+- `types.ts` gains `Client`, `ClientInsight`, `Theme`, `LearnedNumber`,
+  `InsightBasis` and `ExternalRef`. `Deal` gains `clientId`, `Message` gains
+  an optional `external`.
+
+**Decisions**
+
+- *The model lands now, the features land after Phase 6.* Deals are already
+  being written to `localStorage`; if `clientId` arrives after Phase 6 every
+  stored deal needs migrating. Adding the field now costs one line and a null.
+- *Insights are computed on read, never stored.* A cached statistic can go
+  stale and still look authoritative. If days-to-pay is wrong the fix belongs
+  in the invoice data, not in a summary field.
+- *Learned numbers carry their basis.* `LearnedNumber` pairs a value with the
+  row ids it came from, because §1's provenance rule has to apply to a
+  statistic as much as to a price. And nothing is shown below three data
+  points — two invoices is an anecdote, not a median.
+- *Read scopes only, forever.* `gmail.readonly` and nothing else. Asking for
+  inbox access and send access on the same consent screen would trade away the
+  entire "nothing sends" trust story for a convenience nobody asked for.
+
+**Still open — genuinely blocking, before any of §12 gets built**
+
+- `gmail.readonly` is a **Restricted** scope. Google's scopes page conditions
+  the annual CASA security assessment on storing or transmitting scope data
+  server-side, which Backpay never does; the verification page states the
+  assessment flatly for all restricted scopes. The two pages disagree and this
+  is the difference between free and paid. Needs a direct answer from Google.
+  §2 still says free and has not been amended.
+- Unverified apps show a full-screen warning and cap the user list. Fine for a
+  demo, not for launch.
+- The token model has no refresh tokens, so it is re-consent every session.
+
 ## Phase 1 — Thread in, Deal out ✅ (needs a look on the live URL)
 
 **What shipped**

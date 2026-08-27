@@ -163,6 +163,9 @@ export function validateDeal(raw: string, messages: Message[], vatRatePercent = 
 
   const deal: Deal = {
     id: newId('deal'),
+    // Stays null until the user confirms which client this is; extraction can
+    // read a name but has no way to know it's the same Nina as last time.
+    clientId: null,
     clientName: asText(parsed.clientName) ?? '',
     projectName: asText(parsed.projectName) ?? '',
     status: 'draft',

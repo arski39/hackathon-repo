@@ -33,6 +33,10 @@ export type DealFieldSources = Partial<Record<DealFieldKey, Provenance>>
 
 export type Deal = {
   id: string
+  /** Resolved once the user confirms which client this is. Null until then —
+   *  extraction produces a name long before it can know it's the same Nina as
+   *  last time. See section 12. */
+  clientId: string | null
   clientName: string
   projectName: string
   status: 'draft' | 'quoted' | 'agreed' | 'delivered' | 'closed'
@@ -58,6 +62,15 @@ export type Message = {
   sender: string
   body: string
   receivedAt: string
+  /** Set when the message was imported rather than pasted, so it can be shown
+   *  as imported and never double-imported. Section 12.3. */
+  external?: ExternalRef
+}
+
+export type ExternalRef = {
+  provider: 'gmail'
+  messageId: string
+  threadId: string
 }
 
 export type Invoice = {
@@ -80,4 +93,67 @@ export type ScopeFlag = {
   whyItsOutOfScope: string
   suggestedPrice: number       // cents
   status: 'open' | 'billed' | 'dismissed'
+}
+
+// ─── Section 12: client memory and themes ──────────────────────────────────
+// Not built until Phase 6 ships. Defined now so that deals written to
+// localStorage before then already point at a client and never need migrating.
+
+/** The only part of a client that is stored. Everything interesting about them
+ *  is derived from their deals and invoices — see ClientInsight. */
+export type Client = {
+  id: string
+  name: string
+  /** How we recognise them across threads and, later, across imported mail. */
+  emailAddresses: string[]
+  notes: string
+  createdAt: string
+}
+
+/** Where a learned number came from. The section 1 provenance rule applies to
+ *  statistics too: a claim the user cannot trace to specific rows is the same
+ *  confident invention we refuse everywhere else. */
+export type InsightBasis = {
+  /** Invoice or deal ids the figure was computed from. */
+  rowIds: string[]
+  sampleSize: number
+}
+
+export type LearnedNumber = {
+  value: number
+  basis: InsightBasis
+}
+
+/**
+ * Computed on read from deals and invoices, never persisted — a stored summary
+ * is a number that can quietly go stale and still look authoritative.
+ *
+ * Every field is nullable and must be null below three data points. Two
+ * invoices is an anecdote, not a median, and presenting it as one would be
+ * exactly the kind of thing this product exists to stop.
+ */
+export type ClientInsight = {
+  clientId: string
+  dealsCount: number
+  medianDaysToPay: LearnedNumber | null
+  invoicesPaidLate: LearnedNumber | null
+  scopeFlagsRaised: LearnedNumber | null
+  totalBilled: LearnedNumber | null
+  lastActivityAt: string | null
+}
+
+/**
+ * A deliverable that recurs across deals — "15s vertical reel" seen nine times
+ * at seven prices. This is a rate card built from the user's own history, which
+ * is the only kind of benchmark we can show honestly.
+ */
+export type Theme = {
+  id: string
+  label: string
+  /** Deliverable ids that were grouped under this label. */
+  deliverableIds: string[]
+  timesQuoted: number
+  medianUnitPrice: LearnedNumber | null
+  lowestUnitPrice: number
+  highestUnitPrice: number
 }

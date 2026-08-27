@@ -14,13 +14,15 @@ Build spec for Claude Code. Read this fully before writing any code. Follow the 
 
 ### Non-negotiable product rules
 
-- **Nothing sends. Nothing charges.** Backpay drafts and displays. The human clicks the real send button in their own email client. This is the trust story — do not build auto-send, even as a stub.
+- **Nothing sends. Nothing charges.** Backpay drafts and displays. The human clicks the real send button in their own email client. This is the trust story — do not build auto-send, even as a stub. This holds *especially* once an inbox is connected (§12): read scopes only, never a send scope, no exceptions.
 - **Every extracted field shows its source.** If the AI decided the rate is €2000, the user can see the exact sentence in the thread that said so. This is the core trust mechanism and the signature UI element (see §6).
 - **The user can edit everything.** AI output is a first draft, always. Every generated field is an editable input, never read-only text.
 
 ### Explicitly out of scope
 
-Do not build these, and do not stub them: real payments, Stripe, bank integration, accounting export, legally binding contracts, email OAuth, multi-user accounts, login.
+Do not build these, and do not stub them: real payments, Stripe, bank integration, accounting export, legally binding contracts, multi-user accounts, login.
+
+**Amended 2026-08-27:** email OAuth was on this list and has been taken off it deliberately. Read-only inbox connection is now a planned feature — see §12 for the terms it has to meet. It is still out of scope for Phases 0–6 and nothing about it may be stubbed before Phase 6 ships.
 
 ---
 
@@ -383,3 +385,89 @@ Keep every fixture anonymous and invented. No real client names.
 - Never present the VAT estimate as tax advice, or the chase email as a legal document.
 - Never let a generated number appear without the user being able to trace or edit it.
 - If model output fails validation twice, surface the raw output to the user. Don't paper over it with a fake fallback.
+
+---
+
+## 12. Client memory, themes, and inbox connection
+
+Added 2026-08-27. **None of this is built before Phase 6 ships.** The data model
+lands early (see below) so nothing has to be migrated out of `localStorage`
+later; the features come after the six phases are solid.
+
+### 12.1 What this is for
+
+Backpay currently forgets everything between deals. The point of this section is
+that it stops forgetting:
+
+- **Client memory.** How long this client actually takes to pay, how often they
+  add scope after agreeing, what you have historically charged them. A client
+  who always pays on day 40 should make `Firm` the default tone on the chase,
+  not `Friendly`.
+- **Themes.** The same deliverable recurs across clients — "15s vertical reel"
+  shows up in nine deals at seven different prices. Surfacing that is a rate
+  card built from your own history, which is the honest version of §5's rate
+  benchmarking stretch goal. It is your data, not someone else's benchmark.
+- **Extraction gets better.** Known client context goes into the extraction
+  prompt, so the next thread from the same client reads more accurately.
+
+### 12.2 Derived, never asserted
+
+Client insights and themes are **computed from deals and invoices on read**, not
+stored as fields that can drift. If the number of days-to-pay is wrong, the fix
+is in the invoice data, not in a cached summary. Only identity is persisted:
+name, email addresses, notes.
+
+The provenance rule from §1 extends here without exception. A learned claim
+("Nina pays around day 38") must name the invoices it was computed from, the
+same way an extracted price names its sentence. A statistic the user cannot
+trace back to specific rows is exactly the kind of confident-sounding invention
+this product exists to avoid. **Never show a learned number derived from fewer
+than three data points** — say "not enough history yet" instead. Two invoices is
+an anecdote wearing a median's clothes.
+
+### 12.3 Inbox connection — the terms
+
+Read-only Gmail connection via Google Identity Services, using the token model.
+It has to meet all of these:
+
+- **Read scopes only.** `gmail.readonly`. A send scope is never requested, not
+  even to "make the chase easier". The whole trust story is that the human
+  sends. Asking for inbox access and send access in the same consent screen
+  destroys it.
+- **Static-compatible.** The GIS token model needs no client secret and no
+  backend, which keeps §2 intact. The OAuth **client ID is not a secret** and
+  may be committed; nothing else about this may be.
+- **Nothing leaves the browser.** Message bodies go to `localStorage` and to
+  Anthropic for extraction, exactly like a pasted thread does today. No third
+  destination appears without the user being told in the UI.
+- **Import is explicit and reviewable.** Backpay never silently ingests a whole
+  mailbox. The user picks threads to import, sees what was pulled, and can
+  delete it. Imported messages are marked as imported.
+- **Disconnect actually disconnects.** One control that revokes the token and
+  deletes what was imported. Not a flag that hides it.
+- **The pasted-thread path never goes away.** Inbox connection is an
+  alternative input, never a requirement. Demo Mode must still work with no
+  Google account at all — the demo cannot depend on an OAuth consent screen.
+
+### 12.4 Known unknowns — resolve before building
+
+- `gmail.readonly` is a **Restricted** scope. Google's own documentation is
+  inconsistent about whether the annual CASA security assessment applies to an
+  app that never stores or transmits scope data server-side: the scopes page
+  conditions it on server storage, the verification page states it flatly. That
+  ambiguity is the difference between free and not, so **ask Google directly
+  before building**, and record the answer here.
+- Unverified apps show a full-screen warning and are capped to a test-user list.
+  Acceptable for personal use and demos, not for public launch.
+- No refresh tokens in the token model: access tokens are short-lived and the
+  user re-consents each session. Design for that rather than fighting it.
+
+If verification turns out to cost money, this feature stops and we talk. §2 says
+free, and §2 has not been amended.
+
+### 12.5 Guardrails specific to this section
+
+- Never request a Gmail send or modify scope.
+- Never persist an OAuth access token to `localStorage`. Memory only.
+- Never show a learned statistic without the rows behind it.
+- Never let inbox connection become a prerequisite for any Phase 0–6 feature.
