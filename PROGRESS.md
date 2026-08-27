@@ -1,5 +1,83 @@
 # Progress
 
+## The capability ladder — pricing ships at OBSERVE (2026-08-27)
+
+The spec gained a principle the built code violated: **the AI never sets prices,
+it earns the right to help with them.** Phases 1–3 were brought into line.
+
+**What shipped**
+
+- **`unitPriceCents` is gone from the extraction schema**, and
+  `suggestedPriceCents` from the scope-flag schema. Not "return null if unsure" —
+  the field is absent. A price that arrives anyway is dropped and the user is
+  told: *"Backpay doesn't price your work — that one's yours."*
+- **`priceSource` stays and becomes the point of the row.** "budget-ish 2k" now
+  sits beside an empty box as evidence for the user's decision.
+- Every price field is nullable. `formatPrice()` and `lineTotalOf()` replaced the
+  `cents > 0` hack that had spread through every text builder.
+- Every output totals what is priced and states how many lines are still to
+  price. `MoneyInput` can be cleared back to blank.
+- **`priceLog.ts`** — the learning corpus. Starts filling in Phase 1.
+  `comparables()` returns rows, never an average.
+- **`capabilities.ts`** — stages, promotion, demotion past a 50% override rate
+  over a full window. Pricing cannot be promoted past RECALL.
+- Settings grows "What Backpay is allowed to do". Nothing there moves on its own.
+- 183 checks, up from 146.
+
+**Decisions**
+
+- *`null` and `0` are different facts.* null means nobody decided; 0 means
+  genuinely free. Conflating them is what made a free line impossible to express
+  and forced the `cents > 0` workaround. Fixing it properly was most of the
+  refactor.
+- *A partly-priced record is normal, not broken.* At OBSERVE it is what every
+  record looks like the moment it is created, so no output may treat it as an
+  error state or quietly drop a line to make a total look finished.
+- *The corpus logs on entry, and collapses keystrokes.* Typing "2", "20", "200"
+  fires three changes; only the last is a decision. Entries within a minute for
+  the same line replace rather than append, or the data would make the user look
+  indecisive to a feature built on it.
+- *A price typed against an unnamed line is not logged.* An empty description is
+  not a comparable, and a corpus full of them makes RECALL noisier, not better.
+- *Demotion judges only on a full window of six.* Demoting after two corrections
+  out of three punishes someone for a bad first week.
+- *Override history resets on promotion and demotion.* It belongs to the stage
+  that produced it; carrying it across would demote a new stage for the old
+  one's mistakes.
+
+**A weakness the tests found**
+
+The comparables matcher dropped every token of three characters or fewer. That
+threw away "15s" and "30s" — exactly the detail that distinguishes one reel job
+from another — so every reel project in the corpus scored identically and the
+"best match" was whichever happened to be most recent. Tokens containing a digit
+are now always kept, and matching is token-based rather than substring, so "reel"
+still finds "reels" but "3" never matches "30s".
+
+**Also**
+
+Base path is now `/hackathon-repo/` to match the real repo name, which differs
+from the folder on disk. Local dev is `http://localhost:5173/hackathon-repo/`.
+
+**Still open**
+
+- **Nothing is pushed yet.** `arski39/hackathon-repo` exists and already has a
+  commit on `main`, so the first push is not a fast-forward — needs a decision
+  before I touch it.
+- Phase 5 (RECALL) is specced and its machinery is built and tested, but there is
+  no UI showing comparables beside the price field yet. Act 3 of the demo needs
+  it.
+- No seeded-history fixture yet, so Act 3 has nothing to show even once the UI
+  exists.
+- `ClientInsight` still carries `medianDaysToPay` / `medianUnitPrice`, which §5
+  now forbids. Flagged in the type and in §14.2; rework before §14 is built.
+- Demotion logic is written and tested but dormant — nothing is proposed at
+  OBSERVE or RECALL, so nothing can be overridden.
+
+**Next:** Phase 4 — the chase. Then Phase 5's RECALL UI.
+
+---
+
 ## Phase 3 — Outputs (2026-08-27)
 
 One screen, four things the record can become. All copyable, all printable, no
