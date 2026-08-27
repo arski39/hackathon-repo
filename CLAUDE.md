@@ -406,6 +406,7 @@ type Capability = {
  */
 type PriceEntry = {
   recordId: string;
+  clientName: string;           // snapshotted at the moment of the decision. May be ''.
   deliverableDescription: string;
   amount: number;               // cents
   enteredBy: 'user' | 'proposed-accepted' | 'proposed-overridden';
@@ -433,6 +434,7 @@ provenance lines, because there is no thread, and no apology about it either.
 | `Deliverable.unitPrice` being nullable | `0` and "nobody has decided" are different facts and must not share a value. Conflating them is what forced a `cents > 0 ? … : 'price not set'` hack through every text builder, and it makes a genuinely free line impossible to express. |
 | `Capability` | §5. Stages are per capability, so they cannot live in one global setting. `overrideHistory` is what makes demotion possible; without it, a capability that was promoted once stays promoted forever. |
 | `PriceEntry` | The learning corpus (§5, §9). It has to be separate from the records because a comparable is looked up *across* projects, and because a record's price can be edited afterwards while the history of what was decided, when, should not be. |
+| `PriceEntry.clientName` | **Added during Phase 5.** §7 Phase 5 requires every RECALL row to name its client and there is nothing to look one up from — the corpus spans projects and only one record is persisted until Phase 6. Snapshotting is also the more correct of the two: renaming a record later must not restate what was decided then. Rows written before it exist without one, so anything reading it must tolerate `''`. |
 | `ProjectRecord.clientId` | Added ahead of §14 so records already in `localStorage` never need migrating. Null until the user confirms which client it is. Phase 5 groups by `clientName`, not this. |
 | `Message.external` | Marks a message as imported rather than pasted, so it can be labelled and never double-imported (§14.3). |
 | `ScopeFlag.source` | §1 applies to a flag as much as to a price. `whatWasAsked` has to be clean enough for a change-order line, so it cannot double as the quote — the verbatim sentence needs its own field. No quote, no flag. |

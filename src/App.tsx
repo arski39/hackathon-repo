@@ -162,6 +162,8 @@ export default function App() {
             onAddMessage={() => setView('scope')}
             priceLog={priceLog}
             onPriceLogChange={setPriceLog}
+            capabilities={capabilities}
+            onCapabilitiesChange={setCapabilities}
             openFlags={
               flags.filter((f) => f.recordId === record.id && f.status === 'open')
                 .length
@@ -200,8 +202,10 @@ export default function App() {
           settings={settings}
           capabilities={capabilities}
           evidenceCount={priceLog.length}
+          priceLog={priceLog}
           onChange={setSettings}
           onCapabilitiesChange={setCapabilities}
+          onPriceLogChange={setPriceLog}
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}

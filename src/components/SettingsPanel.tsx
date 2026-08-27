@@ -8,7 +8,8 @@ import {
   STAGE_LABEL,
   stageIndex,
 } from '../lib/capabilities'
-import type { Capability } from '../types'
+import { isSeeded, SEEDED_HISTORY } from '../fixtures/seededHistory'
+import type { Capability, PriceEntry } from '../types'
 
 export type Settings = {
   demoMode: boolean
@@ -28,8 +29,10 @@ type Props = {
   capabilities: Capability[]
   /** How many prices the user has entered. Nothing is offered below the floor. */
   evidenceCount: number
+  priceLog: PriceEntry[]
   onChange: (settings: Settings) => void
   onCapabilitiesChange: (capabilities: Capability[]) => void
+  onPriceLogChange: (log: PriceEntry[]) => void
   onClose: () => void
 }
 
@@ -37,8 +40,10 @@ export function SettingsPanel({
   settings,
   capabilities,
   evidenceCount,
+  priceLog,
   onChange,
   onCapabilitiesChange,
+  onPriceLogChange,
   onClose,
 }: Props) {
   const panelRef = useRef<HTMLDivElement | null>(null)
@@ -55,6 +60,8 @@ export function SettingsPanel({
 
   const patch = (changes: Partial<Settings>) =>
     onChange({ ...settings, ...changes })
+
+  const seededCount = priceLog.filter(isSeeded).length
 
   const setCapability = (next: Capability) =>
     onCapabilitiesChange(capabilities.map((c) => (c.name === next.name ? next : c)))
@@ -151,6 +158,41 @@ export function SettingsPanel({
                 )
               })}
             </ul>
+          </section>
+
+          <section>
+            <h3 className="font-medium">Example history</h3>
+            <p className="mt-1 text-sm text-slate">
+              A year of invented past prices, so you can see what Backpay does
+              once it has some. They are made up &mdash; invented clients,
+              invented projects &mdash; and they sit alongside your own until you
+              take them out again.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              {seededCount === 0 ? (
+                <button
+                  type="button"
+                  onClick={() => onPriceLogChange([...priceLog, ...SEEDED_HISTORY])}
+                  className="min-h-11 cursor-pointer rounded-md border border-line px-3 py-1.5 text-sm hover:border-slate/40"
+                >
+                  Load {SEEDED_HISTORY.length} example prices
+                </button>
+              ) : (
+                <>
+                  <p className="text-sm text-slate">
+                    {seededCount} example {seededCount === 1 ? 'price' : 'prices'}{' '}
+                    loaded.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onPriceLogChange(priceLog.filter((e) => !isSeeded(e)))}
+                    className="min-h-11 cursor-pointer text-sm text-slate underline underline-offset-4 hover:text-ink"
+                  >
+                    Take them out
+                  </button>
+                </>
+              )}
+            </div>
           </section>
 
           <section className="rounded-lg border border-line bg-white/70 px-4 py-4">

@@ -1,5 +1,88 @@
 # Progress
 
+## Phase 5 — RECALL: your own past prices, beside the blank field (2026-08-27)
+
+**What shipped**
+
+- **The price field is still blank.** RECALL fills nothing in, sorts nothing by
+  "best", and computes nothing. It lists the user's own past prices under the
+  empty box and gets out of the way.
+- `src/components/Comparables.tsx` — the rows. Client, deliverable, what was
+  charged, when. **No mean, no median, no range**, and a comment saying that if a
+  summary line ever appears there it is a bug rather than a refinement.
+- **Below three rows it says nothing at all.** The floor lives in
+  `recallRows()`, not in the component, so the next thing that renders rows
+  cannot forget it.
+- `src/components/PromotionOffer.tsx` — *"You have 7 past prices with reels in
+  them. Want me to show them here when you're pricing?"* Nothing is promoted by
+  accumulating evidence; evidence only earns the right to ask.
+- `src/fixtures/seededHistory.ts` — a year of invented history, twelve prices
+  across six clients. Loaded from Settings, never on its own, and removable to
+  the row.
+- `PriceEntry.clientName`, and the spec updated to match.
+- 239 checks, up from 216.
+
+**Decisions**
+
+- *The offer is granted inline, not in Settings.* §5 says promotion is granted
+  "by the user, in settings"; the button that grants it is now on the review
+  screen, where the pricing decision is actually being made. **The rule that
+  matters is intact** — nothing is automatic, the grant is an explicit act, and
+  Settings still shows every stage and can put any of them back. Sending the user
+  to a side panel to accept an offer they were just shown is friction without
+  safety, and Act 3 of the demo is the moment the tool *asks*, which does not
+  survive being split across two screens. Flagged rather than done silently.
+- *`PriceEntry` gained `clientName`, snapshotted.* §7 Phase 5 wants a client on
+  every row and there is nothing to look one up from: the corpus spans projects
+  and only one record is persisted until Phase 6. Snapshotting is also the more
+  correct of the two — renaming a record later must not restate what was decided
+  then, which is the same reason the corpus is separate from the records at all.
+  Rows written before the field exists carry no client and render as "Unnamed
+  client" rather than crashing.
+- *The seeded history is loaded by hand and removable.* §13 forbids a hardcoded
+  figure appearing where history belongs, so it never loads itself. Settings says
+  plainly that the rows are invented, and "Take them out" removes exactly those
+  and nothing the user typed. It is not demo choreography: no scripted sequence,
+  no timed reveal, just a button that puts twelve rows in the corpus.
+- *The fixture disagrees with itself on purpose.* The same brief sits at €900 and
+  at €3 100. That spread is the entire argument for showing rows instead of an
+  average — one of those was a favour and the user is the only person who knows
+  which. A check fails if the fixture is ever tidied into a tight band.
+- *A comparable can be a poor comparable and still be shown.* "3 vertical reels,
+  15s, plus stills" turns up in the list for a stills line, because it does
+  genuinely contain stills. §7 is explicit: when in doubt show more rows and let
+  the user judge, because they know which client was a favour and the matcher
+  never will. The full description is on screen, so a mismatch is visible.
+
+**Bugs found while building**
+
+- `commonTerm` named the offer after the wrong word twice. It picked "vertical"
+  over "reels" (a longest-word tie-break, backwards for English noun phrases,
+  which put the head noun last), and then "15s" over "reels" once that was fixed.
+  Words with digits in them are now never the label if a word without one will
+  do: they earn their place in the matcher because they separate one reel job
+  from another, but as a name they describe a duration rather than the work.
+- The offer promised seven rows and the list showed six — two different limits.
+  There is now one `RECALL_LIMIT`, used by both.
+
+**Still open**
+
+- **Pages is still not enabled**, so none of Phases 4 or 5 has been seen on the
+  live URL. Settings → Pages → Source: GitHub Actions, then re-run the job. The
+  build itself is green on CI.
+- §12 asks the seeded history to include past records and an overdue invoice as
+  well as prices. Only the prices are here, because RECALL reads only
+  `PriceEntry` and there is nowhere to put a second record until Phase 6 builds
+  the records list. The rest of the fixture belongs with that.
+- `ClientInsight.medianDaysToPay`, `Theme.medianUnitPrice` and `LearnedNumber`
+  still compute a median where §5 now requires rows. They are unused, and must be
+  reworked before any of §14 is built.
+- Print output has still never been eyeballed by a human.
+
+**Next:** Phase 6 — retroactive import, which is what fills the corpus for real.
+
+---
+
 ## Phase 4 — The chase (2026-08-27)
 
 **What shipped**

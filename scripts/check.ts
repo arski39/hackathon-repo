@@ -6,8 +6,9 @@ import { formatEuros, centsFromEuros } from '../src/lib/money'
 import { quoteTotals, addDays, quoteValidUntil, formatDate } from '../src/lib/quote'
 import { redactMessages, restoreRecord, restoreText } from '../src/lib/redact'
 import { blankRecord } from '../src/lib/blankRecord'
-import { logPrice, comparables } from '../src/lib/priceLog'
-import { DEFAULT_CAPABILITIES, canPromote, promote, recordOutcome, EVIDENCE_FLOOR } from '../src/lib/capabilities'
+import { logPrice, comparables, recallRows, commonTerm, RECALL_LIMIT } from '../src/lib/priceLog'
+import { DEFAULT_CAPABILITIES, canPromote, promote, recordOutcome, stageOf, EVIDENCE_FLOOR } from '../src/lib/capabilities'
+import { SEEDED_HISTORY, isSeeded } from '../src/fixtures/seededHistory'
 import { agreedSummary } from '../src/lib/summary'
 import { parseFollowUp } from '../src/lib/followUp'
 import { validateScopeFlags } from '../src/lib/validateScopeFlags'
@@ -477,6 +478,81 @@ check('the quote text says it too', quoteText(priced, sender, '2026-08-27').incl
 check('so does the reply', agreedReplyText(priced).includes('still to price'))
 
 
+
+
+// -- Phase 5: RECALL (CLAUDE.md §5, §7) -------------------------------------
+// The floor is the whole feature. One row shown as though it were a pattern is
+// worse than showing nothing, and it is the failure §5 exists to prevent.
+const thin: PriceEntry[] = SEEDED_HISTORY.filter((e) => e.deliverableDescription.includes('Photography'))
+check('one comparable is not a pattern, so RECALL says nothing',
+  recallRows(SEEDED_HISTORY, 'Photography, half day').length === 0,
+  String(comparables(SEEDED_HISTORY, 'Photography, half day').length) + ' comparables exist')
+check('...and the raw comparables still found it — the floor is what stopped it',
+  thin.length === 1 && comparables(SEEDED_HISTORY, 'Photography, half day').length >= 1)
+
+const reelRows = recallRows(SEEDED_HISTORY, '3 vertical reels, 15s, for launch')
+check('a well-covered deliverable clears the floor', reelRows.length >= EVIDENCE_FLOOR, String(reelRows.length))
+check('...and shows rows, never a computed figure',
+  reelRows.every((r) => typeof r.amount === 'number' && typeof r.enteredAt === 'string' && typeof r.clientName === 'string'))
+check('...each of which names the client it was for',
+  reelRows.every((r) => r.clientName.length > 0), reelRows.map((r) => r.clientName).join(', '))
+check('...and none of them is the record being priced',
+  recallRows(SEEDED_HISTORY, '3 vertical reels, 15s', 'seed_01').every((r) => r.recordId !== 'seed_01'))
+
+// The same brief at wildly different numbers is the argument for rows over an
+// average. If the fixture ever gets tidied into a tight band, this fails.
+const amounts = reelRows.map((r) => r.amount)
+check('the seeded history disagrees with itself, as real history does',
+  Math.max(...amounts) >= Math.min(...amounts) * 2,
+  amounts.map((a) => formatEuros(a)).join(' '))
+
+check('the offer names the word it matched on',
+  commonTerm('3 vertical reels, 15s, for launch', reelRows) === 'reels',
+  String(commonTerm('3 vertical reels, 15s, for launch', reelRows)))
+// "15s" matches every one of those rows, so it wins on count. It is a good
+// matcher and a terrible name: "7 past prices with 15s in them" is a sentence
+// about a duration.
+check('...and never names a size, however well it matched',
+  !/\d/.test(commonTerm('3 vertical reels, 15s, for launch', reelRows) ?? ''))
+check('...but will, if nothing else matched at all',
+  commonTerm('15s', reelRows) === '15s', String(commonTerm('15s', reelRows)))
+// The offer promises what RECALL will show. Counting past the display limit is
+// how a prompt ends up offering seven rows and producing six.
+check('what the offer counts is what the list shows',
+  recallRows(SEEDED_HISTORY, '3 vertical reels, 15s, for launch').length <= RECALL_LIMIT)
+check('...and says nothing when nothing matched',
+  commonTerm('Voiceover recording', []) === null)
+
+// A price the user enters now must be able to become a comparable later.
+const forNina = { ...priced, clientName: 'Nina', id: 'rec_now' }
+const typedByHand = logPrice([], forNina, '3 vertical reels, 15s', 200000, 'user', '2026-08-27T10:00:00.000Z')
+check('a logged price carries the client it was for', typedByHand[0].clientName === 'Nina', typedByHand[0].clientName)
+check('...and an unnamed client is an empty string, not a guess',
+  logPrice([], { ...forNina, clientName: '  ' }, 'Something', 1000, 'user', '2026-08-27T10:00:00.000Z')[0].clientName === '')
+
+// Rows written before clientName existed must not crash what reads them.
+const legacy = [{ recordId: 'old_1', deliverableDescription: '3 vertical reels, 15s', amount: 180000, enteredBy: 'user' as const, enteredAt: '2026-01-01T10:00:00.000Z' } as PriceEntry]
+check('a row from before the field existed still matches',
+  comparables([...SEEDED_HISTORY, ...legacy], 'vertical reels').some((r) => r.recordId === 'old_1'))
+
+// Promotion is a prompt, not an upgrade (§5). Nothing moves on its own.
+const freshPricing = DEFAULT_CAPABILITIES.find((c) => c.name === 'pricing')!
+check('a full corpus does not promote pricing by itself',
+  stageOf(DEFAULT_CAPABILITIES, 'pricing') === 'observe')
+check('...it only makes the offer possible', canPromote(freshPricing, SEEDED_HISTORY.length))
+check('...and accepting it moves exactly one rung, to RECALL',
+  promote(freshPricing).stage === 'recall')
+check('...which is where pricing stops, whatever the history',
+  !canPromote(promote(freshPricing), SEEDED_HISTORY.length * 10))
+
+// The seeded history is a demo aid and must be removable to the row.
+const mixed = [...SEEDED_HISTORY, ...typedByHand]
+check('every seeded row is identifiable', SEEDED_HISTORY.every(isSeeded))
+check('...and nothing the user typed is', typedByHand.every((e) => !isSeeded(e)))
+check('...so taking it out leaves the user their own rows exactly',
+  mixed.filter((e) => !isSeeded(e)).length === typedByHand.length)
+check('the fixture clears the floor for reels on its own',
+  recallRows(SEEDED_HISTORY, 'reels').length >= EVIDENCE_FLOOR)
 
 // -- Phase 4: the chase (CLAUDE.md §7, §9) ----------------------------------
 const chased = { ...sent, number: '2026-002' }

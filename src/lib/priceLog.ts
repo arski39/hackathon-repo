@@ -1,3 +1,4 @@
+import { EVIDENCE_FLOOR } from './capabilities'
 import type { PriceEntry, ProjectRecord } from '../types'
 
 /**
@@ -42,7 +43,14 @@ export function logPrice(
 
   return [
     ...log,
-    { recordId: record.id, deliverableDescription: description, amount, enteredBy, enteredAt: at },
+    {
+      recordId: record.id,
+      clientName: record.clientName.trim(),
+      deliverableDescription: description,
+      amount,
+      enteredBy,
+      enteredAt: at,
+    },
   ]
 }
 
@@ -95,4 +103,67 @@ export function comparables(
     .sort((a, b) => b.hits - a.hits || b.entry.enteredAt.localeCompare(a.entry.enteredAt))
     .slice(0, limit)
     .map((scored) => scored.entry)
+}
+
+/**
+ * The word this deliverable and its comparables actually have in common.
+ *
+ * Used only to name the offer out loud — *"You have 5 past projects with reels
+ * in them"* — so that the prompt describes what it matched on rather than
+ * asserting a category it invented.
+ *
+ * Two rules, both about the difference between matching and naming:
+ *
+ * - **A word with a digit in it is never the label if a word without one will
+ *   do.** "15s" and "4k" earn their place in `tokenise` because they separate
+ *   one reel job from another, which is matching. As a name they describe a
+ *   spec rather than the work: "6 past prices with 15s in them" is a sentence
+ *   about a duration.
+ * - **A tie goes to the word that appears later.** English noun phrases put the
+ *   head noun last, so "3 vertical reels" is about reels, not about vertical,
+ *   and both match exactly the same rows.
+ */
+export function commonTerm(description: string, rows: PriceEntry[]): string | null {
+  const score = (word: string) =>
+    rows.filter((row) =>
+      tokenise(row.deliverableDescription).some((h) => matches(word, h)),
+    ).length
+
+  const pick = (words: string[]) => {
+    let best: string | null = null
+    let bestCount = 0
+    for (const word of words) {
+      const count = score(word)
+      if (count > 0 && count >= bestCount) {
+        best = word
+        bestCount = count
+      }
+    }
+    return best
+  }
+
+  const words = tokenise(description)
+  return pick(words.filter((w) => !/\d/.test(w))) ?? pick(words)
+}
+
+/** How many rows RECALL will show, and therefore how many the promotion offer
+ *  may promise. One number, so the two can never disagree. */
+export const RECALL_LIMIT = 8
+
+/**
+ * What RECALL is actually allowed to put on screen for one deliverable.
+ *
+ * Below the evidence floor it shows nothing at all rather than one row dressed
+ * up as a pattern (§7 Phase 5, §14.2). The floor lives here rather than in the
+ * component so that it cannot be forgotten by the next thing that renders rows,
+ * and so it is testable without a browser.
+ */
+export function recallRows(
+  log: PriceEntry[],
+  description: string,
+  excludeRecordId: string | null = null,
+  limit = RECALL_LIMIT,
+): PriceEntry[] {
+  const rows = comparables(log, description, excludeRecordId, limit)
+  return rows.length >= EVIDENCE_FLOOR ? rows : []
 }

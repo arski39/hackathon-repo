@@ -240,6 +240,17 @@ export type Capability = {
  */
 export type PriceEntry = {
   recordId: string
+  /** Who it was for, snapshotted at the moment of the decision.
+   *
+   *  Section 7 Phase 5 requires RECALL to show the client on every row, and
+   *  there is nothing to look it up from: the corpus spans projects and only
+   *  one record is persisted until Phase 6. Snapshotting is also the more
+   *  correct of the two — the user knows which of those clients was a favour,
+   *  and renaming a record later must not restate what was decided then.
+   *
+   *  Added after the corpus started filling, so rows written before it exist
+   *  without one. Anything reading this must tolerate an empty string. */
+  clientName: string
   deliverableDescription: string
   amount: number                // cents
   enteredBy: 'user' | 'proposed-accepted' | 'proposed-overridden'

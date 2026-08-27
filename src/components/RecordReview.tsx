@@ -1,16 +1,20 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
+import { Comparables } from './Comparables'
 import { CopyButton } from './CopyButton'
 import { Field } from './Field'
+import { PromotionOffer } from './PromotionOffer'
 import { MoneyInput } from './MoneyInput'
 import { SourceButton } from './SourceButton'
 import { ThreadColumn } from './ThreadColumn'
 import { formatEuros, formatPrice, lineTotalOf } from '../lib/money'
 import { agreedSummary } from '../lib/summary'
 import { newId } from '../lib/id'
+import { commonTerm, recallRows } from '../lib/priceLog'
 import { logPrice } from '../lib/priceLog'
+import { canPromote, promote, stageOf } from '../lib/capabilities'
 import { useConnector } from '../lib/useConnector'
 import type { ActiveSource, ProvenanceApi } from '../lib/provenance'
-import type { PriceEntry, ProjectRecord, Deliverable } from '../types'
+import type { Capability, PriceEntry, ProjectRecord, Deliverable } from '../types'
 
 const input =
   'w-full rounded-md border border-line bg-white px-2.5 py-1.5 focus:border-slate/50'
@@ -28,6 +32,8 @@ type Props = {
   openFlags: number
   priceLog: PriceEntry[]
   onPriceLogChange: (log: PriceEntry[]) => void
+  capabilities: Capability[]
+  onCapabilitiesChange: (capabilities: Capability[]) => void
 }
 
 export function RecordReview({
@@ -40,6 +46,8 @@ export function RecordReview({
   openFlags,
   priceLog,
   onPriceLogChange,
+  capabilities,
+  onCapabilitiesChange,
 }: Props) {
   const [pinned, setPinned] = useState<ActiveSource | null>(null)
   const [transient, setTransient] = useState<ActiveSource | null>(null)
@@ -86,6 +94,40 @@ export function RecordReview({
   )
 
   const summary = useMemo(() => agreedSummary(record), [record])
+
+  // RECALL (§7 Phase 5). Pricing sits at OBSERVE until the user grants the next
+  // rung, so this is either off entirely or a list of rows beside a field that
+  // is still blank. There is no third state where something gets filled in.
+  const [offerDismissed, setOfferDismissed] = useState(false)
+  const pricingStage = stageOf(capabilities, 'pricing')
+  const recalling = pricingStage !== 'observe'
+
+  const recall = useMemo(() => {
+    const byLine = new Map<string, PriceEntry[]>()
+    for (const item of record.deliverables) {
+      byLine.set(item.id, recallRows(priceLog, item.description, record.id))
+    }
+    return byLine
+  }, [record.deliverables, record.id, priceLog])
+
+  // What the offer would be about, if it were made. Computed from the same
+  // rows RECALL would show, so the prompt cannot promise more than it has.
+  const offer = useMemo(() => {
+    if (recalling || offerDismissed) return null
+    const pricing = capabilities.find((c) => c.name === 'pricing')
+    if (!pricing || !canPromote(pricing, priceLog.length)) return null
+    let best: { count: number; term: string | null } | null = null
+    for (const item of record.deliverables) {
+      // Counted over exactly the rows RECALL would show, so the offer cannot
+      // promise seven and then produce six.
+      const rows = recallRows(priceLog, item.description, record.id)
+      if (rows.length === 0) continue
+      if (!best || rows.length > best.count) {
+        best = { count: rows.length, term: commonTerm(item.description, rows) }
+      }
+    }
+    return best
+  }, [recalling, offerDismissed, capabilities, priceLog, record.deliverables, record.id])
 
   const sources = record.fieldSources ?? {}
   // A record started by hand has no thread to point at. Single column, no
@@ -236,9 +278,25 @@ export function RecordReview({
                   here, so nobody reads it as something that failed to load. */}
               <p className="mb-3 text-sm text-slate">
                 Prices are blank because Backpay doesn&rsquo;t price your work.
-                Where the thread mentions money, the line is quoted underneath
-                so you can see what they said before you decide.
+                {recalling
+                  ? ' Where you have priced work like this before, those projects are listed under the box.'
+                  : ' Where the thread mentions money, the line is quoted underneath so you can see what they said before you decide.'}
               </p>
+
+              {offer ? (
+                <PromotionOffer
+                  count={offer.count}
+                  term={offer.term}
+                  onAccept={() =>
+                    onCapabilitiesChange(
+                      capabilities.map((c) =>
+                        c.name === 'pricing' ? promote(c) : c,
+                      ),
+                    )
+                  }
+                  onDismiss={() => setOfferDismissed(true)}
+                />
+              ) : null}
               <ul className="space-y-4">
                 {record.deliverables.map((item) => (
                   <li key={item.id} className="space-y-2">
@@ -323,6 +381,15 @@ export function RecordReview({
                           </div>
                         ) : null}
                       </div>
+
+                      {recalling ? (
+                        <div className="w-full">
+                          <Comparables
+                            rows={recall.get(item.id) ?? []}
+                            description={item.description}
+                          />
+                        </div>
+                      ) : null}
 
                       <p className="ml-auto font-mono tabular-nums">
                         {item.unitPrice === null ? (
