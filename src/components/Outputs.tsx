@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { ChaseDraft } from './ChaseDraft'
 import { CopyButton } from './CopyButton'
 import { QuoteSheet } from './QuoteSheet'
 import { formatEuros, formatPrice } from '../lib/money'
@@ -13,7 +14,7 @@ import {
   KIND_LABEL,
 } from '../lib/invoices'
 import { agreedReplyText, invoiceText, quoteText, scopeSummaryText } from '../lib/outputs'
-import { formatDate, today } from '../lib/quote'
+import { addDays, formatDate, today } from '../lib/quote'
 import type { Settings } from './SettingsPanel'
 import type { Invoice, ProjectRecord, ScopeFlag } from '../types'
 
@@ -55,6 +56,15 @@ export function Outputs({
   onBack,
 }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab)
+  // Which invoice we are chasing, if any. The chase takes over the screen
+  // rather than expanding inside the list: it is a thing you sit down to
+  // write, not a row you tick.
+  const [chasing, setChasing] = useState<string | null>(null)
+  // Marking one sent asks when. The due date follows the day it actually went
+  // out, not the day someone got round to ticking it here — and an invoice
+  // posted three weeks ago is overdue now, which is the whole of Phase 4.
+  const [sending, setSending] = useState<string | null>(null)
+  const [sentOn, setSentOn] = useState(today())
 
   // A fresh object every render would re-render every document below it.
   const from = useMemo(
@@ -96,6 +106,18 @@ export function Outputs({
     onInvoicesChange(invoices.map((i) => (i.id === id ? { ...i, ...changes } : i)))
 
   const nextNumber = () => nextInvoiceNumber(invoices, Number(today().slice(0, 4)))
+
+  const chased = chasing ? mine.find((i) => i.id === chasing) ?? null : null
+  if (chased) {
+    return (
+      <ChaseDraft
+        record={record}
+        invoice={chased}
+        settings={settings}
+        onBack={() => setChasing(null)}
+      />
+    )
+  }
 
   return (
     <div className="mx-auto w-full max-w-4xl px-5 py-8 sm:px-8">
@@ -286,14 +308,53 @@ export function Outputs({
                     </table>
 
                     <div className="no-print mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-4">
-                      {invoice.status === 'draft' ? (
+                      {invoice.status === 'draft' && sending !== invoice.id ? (
                         <button
                           type="button"
-                          onClick={() => patch(invoice.id, { status: 'sent' })}
+                          onClick={() => {
+                            setSentOn(invoice.issuedAt)
+                            setSending(invoice.id)
+                          }}
                           className={BUTTON}
                         >
                           I&rsquo;ve sent it
                         </button>
+                      ) : null}
+                      {sending === invoice.id ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label htmlFor={`sent-${invoice.id}`} className="text-sm">
+                            When did you send it?
+                          </label>
+                          <input
+                            id={`sent-${invoice.id}`}
+                            type="date"
+                            value={sentOn}
+                            max={today()}
+                            onChange={(e) => setSentOn(e.target.value)}
+                            className="min-h-11 rounded-md border border-line bg-white px-2 py-1.5 font-mono text-sm tabular-nums focus:border-slate/50"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              patch(invoice.id, {
+                                status: 'sent',
+                                issuedAt: sentOn,
+                                dueAt: addDays(sentOn, record.paymentTerms.netDays),
+                              })
+                              setSending(null)
+                            }}
+                            className={BUTTON}
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSending(null)}
+                            className="min-h-11 cursor-pointer text-sm text-slate underline underline-offset-4 hover:text-ink"
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       ) : null}
                       {invoice.status === 'sent' ? (
                         <button
@@ -320,6 +381,15 @@ export function Outputs({
                         label="Copy as text"
                         className={BUTTON}
                       />
+                      {overdue ? (
+                        <button
+                          type="button"
+                          onClick={() => setChasing(invoice.id)}
+                          className="min-h-11 cursor-pointer rounded-md bg-ink px-4 py-2 text-sm font-medium text-paper transition-opacity duration-150 hover:opacity-90"
+                        >
+                          Draft the nudge
+                        </button>
+                      ) : null}
                     </div>
                   </li>
                 )

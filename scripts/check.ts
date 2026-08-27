@@ -17,6 +17,9 @@ import { quoteText, scopeSummaryText, agreedReplyText, invoiceText } from '../sr
 import { restoreFlags, redactRecord } from '../src/lib/redact'
 import { DEMO_SCOPE_FLAGS } from '../src/fixtures/demoScopeFlags'
 import { SCOPE_CREEP_MESSAGE } from '../src/fixtures/heroThread'
+import { chaseFacts, allowedNumbers, numbersIn, mailtoHref, days, CHASE_TONES } from '../src/lib/chase'
+import { validateChase } from '../src/lib/validateChase'
+import { demoChase } from '../src/fixtures/demoChase'
 import type { PriceEntry, ProjectRecord, ScopeFlag } from '../src/types'
 import type { Message } from '../src/types'
 
@@ -473,6 +476,107 @@ check('...and never prints a zero for the blank one', !hasZeroPricedLine(partial
 check('the quote text says it too', quoteText(priced, sender, '2026-08-27').includes('still to price'))
 check('so does the reply', agreedReplyText(priced).includes('still to price'))
 
+
+
+// -- Phase 4: the chase (CLAUDE.md §7, §9) ----------------------------------
+const chased = { ...sent, number: '2026-002' }
+const facts = chaseFacts(withDep, chased, 'Aaro', '2026-10-20')
+
+check('the chase is handed the real amount', facts.amountCents === 120000 && facts.amountText === formatEuros(120000))
+check('...how late it actually is', facts.daysOverdue === 40, String(facts.daysOverdue))
+// A pasted thread carries no timestamps — there is nothing in plain pasted text
+// for parseThread to read them from — so the chase never claims an agreement
+// date today. That is the §1 rule applied to a date: no record to point at, so
+// the field stays blank rather than borrowing createdAt, which means something
+// else. It starts working the moment messages arrive dated (§7 Phase 6, §14.3).
+check('a thread with no dates on it yields no agreement date', facts.agreedText === null)
+check('...and neither does a record with no thread at all',
+  chaseFacts(blankRecord(), chased, 'Aaro', '2026-10-20').agreedText === null)
+const dated = {
+  ...withDep,
+  sourceThread: withDep.sourceThread.map((m, i) =>
+    i === 0 ? { ...m, receivedAt: '2026-08-01T09:00:00.000Z' } : m,
+  ),
+}
+check('...but a dated thread is used when there is one',
+  chaseFacts(dated, chased, 'Aaro', '2026-10-20').agreedText === '1 August 2026',
+  String(chaseFacts(dated, chased, 'Aaro', '2026-10-20').agreedText))
+check('"1 day", not "1 days"', days(1) === '1 day' && days(40) === '40 days')
+
+// The allowlist is what stands between the user and a confidently wrong figure
+// in front of someone who owes them money.
+const allowed = allowedNumbers(facts)
+check('the amount is allowed however it is spelled',
+  allowed.has('120000') && allowed.has('1200'), [...allowed].join(' '))
+check('the invoice number is allowed whole and in parts',
+  allowed.has('2026002') && allowed.has('2026') && allowed.has('002') && allowed.has('2'))
+check('a number nobody mentioned is not allowed', !allowed.has('7'))
+
+check('digit runs are read out of a formatted sentence',
+  numbersIn('due 10 September 2026 for 1 200,00 €').join('|') === '10|2026|120000',
+  numbersIn('due 10 September 2026 for 1 200,00 €').join('|'))
+check('...and prose with no numbers yields none', numbersIn('no figures here at all').length === 0)
+
+// Every canned draft, against the same validator the live path uses. This is
+// the check that catches a fixture drifting away from the facts it renders.
+for (const tone of CHASE_TONES) {
+  const outcome = validateChase(demoChase(facts, tone), facts)
+  check(`the ${tone} demo draft validates`, outcome.ok, outcome.ok ? '' : outcome.errors.join(' '))
+}
+
+const friendly = validateChase(demoChase(facts, 'friendly'), facts)
+const firm = validateChase(demoChase(facts, 'firm'), facts)
+const formal = validateChase(demoChase(facts, 'formal'), facts)
+if (friendly.ok && firm.ok && formal.ok) {
+  check('the three tones are three different emails',
+    new Set([friendly.draft.body, firm.draft.body, formal.draft.body]).size === 3)
+  check('friendly never says how late it is — only when it was due (§9)',
+    !/overdue|past due|outstanding/i.test(friendly.draft.body) && friendly.draft.body.includes(facts.dueText))
+  check('firm states the days overdue plainly', firm.draft.body.includes('40 days'))
+  check('...and asks for a date it will be paid', /when|date it will be paid/i.test(firm.draft.body))
+  check('formal notice says interest applies without naming a rate',
+    formal.draft.body.includes('as per the agreed terms') && !formal.draft.body.includes('%'))
+  check('every draft names the invoice and the amount',
+    [friendly, firm, formal].every((r) => r.ok && r.draft.body.includes('2026-002') && r.draft.body.includes(facts.amountText)))
+  check('no draft threatens anyone',
+    [friendly, firm, formal].every((r) => r.ok && !/legal|court|lawyer|collect/i.test(r.draft.body)))
+  check('the subject line names the invoice', [friendly, firm, formal].every((r) => r.ok && r.draft.subject.includes('2026-002')))
+}
+
+// Now the things a live model might actually do wrong.
+const madeUpDeadline = JSON.stringify({ subject: 'Invoice 2026-002', body: 'Please pay within 7 days.' })
+const inventedResult = validateChase(madeUpDeadline, facts)
+check('a deadline nobody agreed is rejected as invented',
+  !inventedResult.ok && inventedResult.errors.some((e) => e.includes('7')),
+  inventedResult.ok ? 'accepted it' : inventedResult.errors.join(' '))
+
+const wrongAmount = JSON.stringify({ subject: 'Invoice 2026-002', body: 'The 1 500,00 € is overdue.' })
+check('a plausible but wrong amount is rejected', !validateChase(wrongAmount, facts).ok)
+
+const threat = JSON.stringify({ subject: 'Invoice 2026-002', body: 'Pay or I will take legal action.' })
+check('a threat of legal action is rejected', !validateChase(threat, facts).ok)
+
+const rate = JSON.stringify({ subject: 'Invoice 2026-002', body: 'Interest accrues at 8 % per annum.' })
+check('a stated interest rate is rejected (§9)', !validateChase(rate, facts).ok)
+
+const lawful = JSON.stringify({ subject: 'Invoice 2026-002', body: 'You are legally obliged to pay this.' })
+check('a claim about what the law requires is rejected', !validateChase(lawful, facts).ok)
+
+check('prose instead of JSON is rejected, not guessed at', !validateChase('Sure! Here is your email:', facts).ok)
+check('JSON with no body is rejected', !validateChase('{"subject":"Invoice 2026-002"}', facts).ok)
+
+// The user's own words are theirs. A number inside the project name is not an
+// invention just because it is a number.
+const numbered = { ...facts, projectName: 'Launch 2026 campaign' }
+check("a number in the user's own project name is allowed",
+  validateChase(demoChase(numbered, 'friendly'), numbered).ok)
+
+// mailto: opens a compose window. It does not send, and it does not guess who
+// the client is (§7, §13).
+const mail = mailtoHref('Invoice 2026-002', 'Hi Nina,\n\nPlease see attached.')
+check('the mailto has no recipient', mail.startsWith('mailto:?'))
+check('...and the body survives encoding', decodeURIComponent(mail.split('&body=')[1]).includes('Hi Nina,'))
+check('...and carries the subject', mail.includes('subject=' + encodeURIComponent('Invoice 2026-002')))
 
 // -- Dates -----------------------------------------------------------------
 check('addDays crosses a month boundary', addDays('2026-08-27', 30) === '2026-09-26', addDays('2026-08-27', 30))
