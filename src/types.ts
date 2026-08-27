@@ -11,7 +11,25 @@ export type Deliverable = {
   quantity: number
   unitPrice: number    // in cents, always
   source?: Provenance
+  /** Additive: the budget is usually stated in a different sentence from the
+   *  deliverable itself, and section 11 requires every number be traceable. */
+  priceSource?: Provenance
 }
+
+/** Section 6 requires provenance on *every* extracted field, but the section 4
+ *  model only carries `source` on Deliverable. This is the additive companion:
+ *  a quote for each scalar field the model filled in. Optional, so a Deal built
+ *  by hand is still a valid Deal. */
+export type DealFieldKey =
+  | 'clientName'
+  | 'projectName'
+  | 'deadline'
+  | 'usageRights'
+  | 'revisionsIncluded'
+  | 'depositPercent'
+  | 'netDays'
+
+export type DealFieldSources = Partial<Record<DealFieldKey, Provenance>>
 
 export type Deal = {
   id: string
@@ -30,6 +48,7 @@ export type Deal = {
   vatRatePercent: number
   notes: string
   sourceThread: Message[]
+  fieldSources?: DealFieldSources
   createdAt: string
 }
 
