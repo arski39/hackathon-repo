@@ -4,6 +4,8 @@ import { HERO_THREAD } from '../src/fixtures/heroThread'
 import { DEMO_EXTRACTION } from '../src/fixtures/demoExtraction'
 import { formatEuros, centsFromEuros } from '../src/lib/money'
 import { quoteTotals, addDays, quoteValidUntil, formatDate } from '../src/lib/quote'
+import { redactMessages, restoreRecord, restoreText } from '../src/lib/redact'
+import type { Message } from '../src/types'
 
 let failed = 0
 const check = (name: string, cond: boolean, extra = '') => {
@@ -17,7 +19,7 @@ check('first message is the client', messages[0].from === 'client' && messages[0
 check('second message is the creator', messages[1].from === 'creator')
 check('header line stripped from body', !messages[0].body.includes('From:'))
 
-const result = validateRecord(DEMO_EXTRACTION, messages, 25.5)
+const result = validateRecord(DEMO_EXTRACTION, messages)
 if (!result.ok) {
   console.log('FAIL  demo extraction is valid —', result.errors.join('; '))
   process.exit(1)
@@ -87,6 +89,69 @@ check('deposit rounds to a whole cent', Number.isInteger(thirdDown.depositAmount
 check('deposit + balance loses nothing', thirdDown.depositAmount + thirdDown.balanceAmount === thirdDown.total)
 const odd = quoteTotals({ ...result.record, deliverables: [{ id: 'x', description: 'odd', quantity: 7, unitPrice: 3333 }] })
 check('odd line still totals exactly', odd.total === 23331, String(odd.total))
+
+// -- Redaction (CLAUDE.md §3) ----------------------------------------------
+// The order in §3 is load-bearing: the model only ever sees the redacted text,
+// so quotes are verified against that, and the names go back afterwards. If the
+// round trip is not exact, every provenance line silently dies with the toggle
+// on and it looks like the model misbehaving.
+const red = redactMessages(messages)
+const sentBodies = red.messages.map((m) => m.body).join('\n')
+
+check('the client name is gone from what gets sent', !/nina/i.test(sentBodies))
+check('both spellings were caught', sentBodies.includes('[Client]') && sentBodies.includes('[client]'), 'Nina and nina')
+check('the map has an entry per spelling', red.map.get('[Client]') === 'Nina' && red.map.get('[client]') === 'nina')
+check('"you" was never treated as a name', !sentBodies.includes('[YOU]') && sentBodies.includes("you'd"))
+
+check(
+  'restoring is an exact round trip',
+  red.messages.every((m, i) => restoreText(m.body, red.map) === messages[i].body),
+)
+
+// A quote taken from the redacted text must survive validation there, and come
+// back a verbatim substring of the original.
+const sentReply = red.messages[1]
+const response = JSON.stringify({
+  clientName: '[Client]',
+  projectName: 'Launch',
+  deliverables: [
+    { description: '3 reels for [Client]', quantity: 1, unitPriceCents: 200000,
+      source: { quote: sentReply.body, messageId: sentReply.id } },
+  ],
+  notes: '',
+})
+const v = validateRecord(response, red.messages)
+check('a redacted quote verifies against the text that was sent', v.ok && !!v.record.deliverables[0].source)
+if (v.ok) {
+  const back = restoreRecord(v.record, red.map, messages)
+  const q = back.deliverables[0].source!
+  check('the restored quote is verbatim in the original thread',
+    messages.find((m) => m.id === q.messageId)!.body.includes(q.quote))
+  check('the client name came back', back.clientName === 'Nina', back.clientName)
+  check('placeholders are gone from descriptions', back.deliverables[0].description === '3 reels for Nina')
+  check('sourceThread is the untouched original', back.sourceThread[0].body === messages[0].body)
+}
+
+// A short name must not be redacted out of the middle of an ordinary word.
+const ali: Message[] = [
+  { id: 'msg_1', from: 'client', sender: 'Ali', body: 'the quality has to be high, ali', receivedAt: '' },
+]
+const aliRed = redactMessages(ali)
+check('a short name leaves "quality" alone', aliRed.messages[0].body === 'the quality has to be high, [client]', aliRed.messages[0].body)
+check('...and still round trips', restoreText(aliRed.messages[0].body, aliRed.map) === ali[0].body)
+
+// Nothing to redact must not mean nothing works.
+const anon: Message[] = [{ id: 'msg_1', from: 'client', sender: 'You', body: 'hei, 3 reels?', receivedAt: '' }]
+const anonRed = redactMessages(anon)
+check('a generic sender label is left alone', anonRed.map.size === 0 && anonRed.messages === anon)
+
+const withEmail: Message[] = [
+  { id: 'msg_1', from: 'client', sender: 'Nina', body: 'send it to nina@studio.fi thanks', receivedAt: '' },
+]
+const emailRed = redactMessages(withEmail)
+check('an email address is replaced whole', emailRed.messages[0].body.includes('[EMAIL_1]') && !emailRed.messages[0].body.includes('studio.fi'), emailRed.messages[0].body)
+check('...and round trips exactly', restoreText(emailRed.messages[0].body, emailRed.map) === withEmail[0].body)
+
 
 // -- Dates -----------------------------------------------------------------
 check('addDays crosses a month boundary', addDays('2026-08-27', 30) === '2026-09-26', addDays('2026-08-27', 30))

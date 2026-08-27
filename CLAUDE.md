@@ -140,11 +140,20 @@ needs a lawyer to be true, either the sentence is wrong or the product is.
 ### Redaction
 
 A toggle in Settings, **off by default**, that replaces detected client names and
-email addresses with placeholders (`[CLIENT]`, `[EMAIL_1]`) before the thread is
+email addresses with placeholders (`[Client]`, `[EMAIL_1]`) before the thread is
 sent, and restores them locally in whatever comes back.
 
 Say plainly that it is best-effort pattern matching, not a guarantee, and that it
 will miss things. Do not call it anonymisation.
+
+**One placeholder per spelling, cased to match.** The hero thread says
+"From: Nina" and signs off "nina". Matching case-insensitively but restoring
+both to "Nina" would rewrite the user's own words, and the restored quote would
+no longer be a verbatim substring of the message it cites — so `Nina` becomes
+`[Client]` and `nina` becomes `[client]`, each mapping back to exactly what it
+replaced. Only client-side names are redacted: the user's own name is their own,
+and the parser labels an unnamed creator "You", which would turn every "you" and
+"you'd" in the thread into a placeholder.
 
 **This interacts with provenance, and the interaction is load-bearing.** The model
 returns verbatim quotes, and §8 requires every quote be verified as a real

@@ -19,6 +19,7 @@ type Failure = { message: string; hint?: string; raw?: string }
 const DEFAULT_SETTINGS: Settings = {
   demoMode: true,
   apiKey: '',
+  redact: false,
   yourName: '',
   yourEmail: '',
   businessId: '',
@@ -59,6 +60,7 @@ export default function App() {
       const outcome = await runExtraction(messages, {
         demoMode: settings.demoMode,
         apiKey: settings.apiKey.trim(),
+        redact: settings.redact,
       })
       if (outcome.kind === 'ok') {
         setRecord(outcome.record)

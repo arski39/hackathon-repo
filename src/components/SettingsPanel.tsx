@@ -3,6 +3,9 @@ import { useEffect, useRef, useState } from 'react'
 export type Settings = {
   demoMode: boolean
   apiKey: string
+  /** Section 3. Off by default: it is the riskier path through extraction,
+   *  so it should be a deliberate choice rather than a silent one. */
+  redact: boolean
   /** Whose name is at the top of the quote. A quote with no sender is not
    *  something anyone would actually send. */
   yourName: string
@@ -62,6 +65,40 @@ export function SettingsPanel({ settings, onChange, onClose }: Props) {
         </div>
 
         <div className="space-y-8 px-5 py-6">
+          <section className="rounded-lg border border-line bg-white/70 px-4 py-4">
+            <h3 className="font-medium">Where your text goes</h3>
+            <p className="mt-1.5 text-sm text-slate">
+              Your thread text is sent to Anthropic to be read, using your own
+              API key. It goes nowhere else. There is no Backpay server.
+              Everything you create stays in this browser, and nothing about how
+              you use this app is recorded or sent anywhere.
+            </p>
+          </section>
+
+          <section>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <label htmlFor="redact" className="font-medium">
+                  Redact names before sending
+                </label>
+                <p id="redact-hint" className="mt-1 text-sm text-slate">
+                  Swaps email addresses and the names in the thread for
+                  placeholders on the way out, and puts them back here. It is
+                  pattern matching, not anonymisation &mdash; a client mentioned
+                  only by a nickname will go through untouched. Demo Mode sends
+                  nothing at all, so this has nothing to do while that is on.
+                </p>
+              </div>
+              <input
+                id="redact"
+                type="checkbox"
+                aria-describedby="redact-hint"
+                checked={settings.redact}
+                onChange={(e) => patch({ redact: e.target.checked })}
+                className="mt-1 size-5 shrink-0 accent-ink"
+              />
+            </div>
+          </section>
           <section>
             <div className="flex items-start justify-between gap-4">
               <div>
