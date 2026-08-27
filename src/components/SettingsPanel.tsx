@@ -4,6 +4,11 @@ export type Settings = {
   demoMode: boolean
   apiKey: string
   vatRatePercent: number
+  /** Whose name is at the top of the quote. A quote with no sender is not
+   *  something anyone would actually send. */
+  yourName: string
+  yourEmail: string
+  businessId: string
 }
 
 type Props = {
@@ -77,6 +82,51 @@ export function SettingsPanel({ settings, onChange, onClose }: Props) {
                 onChange={(e) => patch({ demoMode: e.target.checked })}
                 className="mt-1 size-5 shrink-0 accent-ink"
               />
+            </div>
+          </section>
+
+          <section>
+            <h3 className="font-medium">Your details</h3>
+            <p className="mt-1 text-sm text-slate">
+              These go at the top of every quote and invoice. Nothing here
+              leaves your browser.
+            </p>
+            <div className="mt-3 space-y-3">
+              <div>
+                <label htmlFor="yourName" className="block text-sm text-slate">
+                  Name or business name
+                </label>
+                <input
+                  id="yourName"
+                  value={settings.yourName}
+                  onChange={(e) => patch({ yourName: e.target.value })}
+                  className="mt-1 w-full rounded-md border border-line bg-white px-2.5 py-1.5 focus:border-slate/50"
+                />
+              </div>
+              <div>
+                <label htmlFor="yourEmail" className="block text-sm text-slate">
+                  Email
+                </label>
+                <input
+                  id="yourEmail"
+                  type="email"
+                  value={settings.yourEmail}
+                  onChange={(e) => patch({ yourEmail: e.target.value })}
+                  className="mt-1 w-full rounded-md border border-line bg-white px-2.5 py-1.5 focus:border-slate/50"
+                />
+              </div>
+              <div>
+                <label htmlFor="businessId" className="block text-sm text-slate">
+                  Business ID <span className="text-slate/70">(optional)</span>
+                </label>
+                <input
+                  id="businessId"
+                  placeholder="1234567-8"
+                  value={settings.businessId}
+                  onChange={(e) => patch({ businessId: e.target.value })}
+                  className="mt-1 w-full rounded-md border border-line bg-white px-2.5 py-1.5 font-mono text-sm focus:border-slate/50"
+                />
+              </div>
             </div>
           </section>
 

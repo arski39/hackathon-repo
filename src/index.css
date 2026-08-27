@@ -49,3 +49,47 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* The quote has to survive leaving the browser. window.print() is the whole
+   PDF story — no library, so this stylesheet is the document. */
+@media print {
+  @page {
+    margin: 18mm;
+  }
+
+  /* App chrome, controls and anything that only makes sense on screen. */
+  .no-print {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  .print-sheet {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: #fff;
+  }
+
+  /* A line item split across a page break looks like a mistake in a document
+     someone is deciding whether to pay. */
+  tr,
+  li,
+  .print-keep {
+    break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  a[href^='http']::after {
+    content: ' (' attr(href) ')';
+    font-size: 0.85em;
+  }
+}
