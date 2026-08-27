@@ -6,6 +6,7 @@ import { formatEuros, centsFromEuros } from '../src/lib/money'
 import { quoteTotals, addDays, quoteValidUntil, formatDate } from '../src/lib/quote'
 import { redactMessages, restoreRecord, restoreText } from '../src/lib/redact'
 import { blankRecord } from '../src/lib/blankRecord'
+import { agreedSummary } from '../src/lib/summary'
 import type { Message } from '../src/types'
 
 let failed = 0
@@ -164,6 +165,26 @@ check('...has an absorbed list ready', Array.isArray(blank.absorbedWork) && blan
 check('...defaults to net 14', blank.paymentTerms.netDays === 14)
 check('...totals to nothing without crashing', quoteTotals(blank).total === 0)
 check('an extracted record is marked extracted', result.ok && result.record.origin === 'extracted')
+
+
+// -- The sendable artifact (CLAUDE.md §1) -----------------------------------
+// Phase 1 may not end in a screen that only stores, so the summary is part of
+// the phase, not a nicety.
+const summary = result.ok ? agreedSummary(result.record) : ''
+check('the summary names the project', summary.includes('What we agreed'))
+check('...lists the scope', summary.includes('Scope') && summary.includes('reels'))
+check('...states the total once', summary.includes('Total: ') && (summary.match(/Total: /g) ?? []).length === 1)
+check('...says the usage rights are missing rather than omitting it', summary.includes('Usage rights: not agreed yet'))
+check('...never prints 0,00 € for a price nobody set', !summary.includes('0,00 €') && summary.includes('price not set'))
+check('...says VAT is not calculated', summary.includes('VAT is not included or calculated'))
+check('...mentions no client name that was redacted away', !summary.includes('[Client]'))
+
+const blankSummary = agreedSummary(blank)
+check('an empty record still produces a summary', blankSummary.includes('What we agreed — the project'))
+check('...with no deadline claimed', blankSummary.includes('Delivery: no date agreed yet'))
+
+const depositSummary = agreedSummary({ ...blank, deliverables: [{ id: 'x', description: 'Film', quantity: 1, unitPrice: 100000 }], paymentTerms: { depositPercent: 40, netDays: 30 } })
+check('a deposit is spelled out in euros', depositSummary.includes('40% deposit of') && depositSummary.includes('net 30 days'))
 
 
 // -- Dates -----------------------------------------------------------------

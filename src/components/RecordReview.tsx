@@ -1,9 +1,11 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
+import { CopyButton } from './CopyButton'
 import { Field } from './Field'
 import { MoneyInput } from './MoneyInput'
 import { SourceButton } from './SourceButton'
 import { ThreadColumn } from './ThreadColumn'
 import { formatEuros } from '../lib/money'
+import { agreedSummary } from '../lib/summary'
 import { newId } from '../lib/id'
 import { useConnector } from '../lib/useConnector'
 import type { ActiveSource, ProvenanceApi } from '../lib/provenance'
@@ -67,6 +69,8 @@ export function RecordReview({
     () => record.deliverables.reduce((sum, d) => sum + d.quantity * d.unitPrice, 0),
     [record.deliverables],
   )
+
+  const summary = useMemo(() => agreedSummary(record), [record])
 
   const sources = record.fieldSources ?? {}
   // A record started by hand has no thread to point at. Single column, no
@@ -478,6 +482,26 @@ export function RecordReview({
           </div>
         </section>
       </div>
+
+      <section
+        aria-labelledby="summary-heading"
+        className="mt-10 rounded-lg border border-line bg-white/70 px-4 py-5 sm:px-5"
+      >
+        <h2 id="summary-heading" className="font-display font-semibold">
+          Send it back to them
+        </h2>
+        <p className="mt-1 max-w-xl text-sm text-slate">
+          The record as plain text. Paste it into a reply, so what you both
+          agreed is written down somewhere other than here &mdash; which is the
+          whole point of the thing.
+        </p>
+        <div className="mt-4">
+          <CopyButton text={summary} label="Copy what we agreed" />
+        </div>
+        <pre className="mt-4 max-h-72 overflow-auto rounded-md border border-line bg-white p-3 font-sans text-sm leading-relaxed whitespace-pre-wrap">
+          {summary}
+        </pre>
+      </section>
     </div>
   )
 }
