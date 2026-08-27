@@ -25,3 +25,7 @@ export const MAX_TOKENS = 4096
 /** Browser-direct calls need this header alongside the API version. */
 export const ANTHROPIC_API_VERSION = '2023-06-01'
 export const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
+
+/** How long a quote states it stands for. A quote with no expiry is a price
+ *  the client can hold you to in six months. */
+export const QUOTE_VALID_DAYS = 30
