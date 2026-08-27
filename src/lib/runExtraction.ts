@@ -1,4 +1,5 @@
 import { complete } from './anthropic'
+import { sleep, DEMO_DELAY_MS } from './demoDelay'
 import { redactMessages, restoreRecord, restoreText } from './redact'
 import { validateRecord, type ValidationResult } from './validateRecord'
 import { extractRecordPrompt, retrySuffix } from '../prompts/extractRecord'
@@ -8,20 +9,6 @@ import type { Message, ProjectRecord } from '../types'
 export type ExtractionOutcome =
   | { kind: 'ok'; record: ProjectRecord; warnings: string[] }
   | { kind: 'invalid'; errors: string[]; raw: string }
-
-/** Demo Mode: no network, no key, but not instant either — an answer that
- *  arrives in 0ms doesn't read as work being done. */
-const DEMO_DELAY_MS = 1400
-
-function sleep(ms: number, signal?: AbortSignal) {
-  return new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(resolve, ms)
-    signal?.addEventListener('abort', () => {
-      clearTimeout(timer)
-      reject(new DOMException('Aborted', 'AbortError'))
-    })
-  })
-}
 
 /**
  * Thread in, record out.

@@ -1,4 +1,5 @@
 import { complete } from './anthropic'
+import { sleep, DEMO_DELAY_MS } from './demoDelay'
 import { redactMessages, redactRecord, restoreFlags, restoreText } from './redact'
 import { validateScopeFlags, type ScopeValidation } from './validateScopeFlags'
 import { findScopeFlagsPrompt, scopeRetrySuffix } from '../prompts/findScopeFlags'
@@ -8,18 +9,6 @@ import type { Message, ProjectRecord, ScopeFlag } from '../types'
 export type ScopeOutcome =
   | { kind: 'ok'; flags: ScopeFlag[]; warnings: string[] }
   | { kind: 'invalid'; errors: string[]; raw: string }
-
-const DEMO_DELAY_MS = 1400
-
-function sleep(ms: number, signal?: AbortSignal) {
-  return new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(resolve, ms)
-    signal?.addEventListener('abort', () => {
-      clearTimeout(timer)
-      reject(new DOMException('Aborted', 'AbortError'))
-    })
-  })
-}
 
 /**
  * A new message from the client, compared against the record — CLAUDE.md §6,
