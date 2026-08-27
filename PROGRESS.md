@@ -1,5 +1,94 @@
 # Progress
 
+## Phase 4 — The chase (2026-08-27)
+
+**What shipped**
+
+- **"Draft the nudge"** on any overdue invoice, opening a screen of its own
+  rather than an accordion in the list. It is a thing you sit down to write.
+- **Three tones, named exactly as §7 says them:** `Friendly` → `Firm` →
+  `Formal notice`. Friendly is preselected and the draft is already written when
+  the screen opens. Firm and Formal notice are one keystroke away, same size,
+  same row, no warning in front of either.
+- `src/prompts/draftChase.ts` — the three strategies written out in full, because
+  "be firmer" produces the same email with more exclamation marks. Friendly gives
+  them an easy out and never mentions how late it is; Firm names the days and
+  asks for a date; Formal notice states the facts and stops.
+- `src/lib/chase.ts` — `chaseFacts()` computes every figure from the invoice and
+  the record. The model is handed the numbers and told to write around them; it
+  is never asked what anything costs or how late anything is.
+- `src/lib/validateChase.ts` — the load-bearing check. **Every digit run in the
+  draft is matched against the facts we handed over, and one that isn't there
+  fails the whole draft.** It also rejects threats of legal action, debt
+  collection, a named interest rate, and any claim about what the law requires.
+- `src/lib/runChase.ts` — same shape as extraction: one retry with the errors fed
+  back, then the raw output goes to the user (§13). Same redaction ordering as
+  §3, so the model only ever sees the placeholder names.
+- `src/fixtures/demoChase.ts` — canned drafts for all three tones, no network, no
+  key.
+- Output is a copyable block plus a `mailto:` with **no recipient**. Backpay
+  never learns the client's address and guessing one is how a chase goes to the
+  wrong person.
+- 216 checks, up from 183.
+
+**Decisions**
+
+- *The demo fixture is a function of the facts, not a frozen string.* Every other
+  fixture is a constant; this one cannot be. The invoice number, the amount and
+  how late it is are computed at runtime from what the user actually did, so a
+  hardcoded draft would either contradict the invoice on the same screen or fail
+  its own validator for inventing every number in it. It is still canned in the
+  way that matters: no network, no key, same text every time for a given invoice.
+- *Marking an invoice sent now asks **when**.* Without it Phase 4 was
+  unreachable — every new invoice is due 14 days out, so nothing could ever be
+  overdue and the "Draft the nudge" action would never appear outside a demo that
+  waited a fortnight. The due date should follow the day the invoice actually
+  went out rather than the day someone ticked a box here, and an invoice posted
+  three weeks ago is overdue now. This is also what Phase 6's import will need.
+- *An invented number fails the draft rather than being stripped out of it.* A
+  sentence with a number cut out of it does not survive the cut, and everywhere
+  else in Backpay a fabricated figure is embarrassing — in a payment reminder it
+  is the thing that makes the user look wrong in front of someone who owes them
+  money.
+- *The chase never claims an agreement date.* §7 lists "original agreement date"
+  among the real numbers to draft with, but `parseThread` sets `receivedAt: ''`
+  because plain pasted text carries no timestamps, and `record.createdAt` means
+  something different — the day it was written down, not the day it was agreed.
+  So the field stays blank, which is §1's rule applied to a date. The code reads
+  the thread first and starts working the moment messages arrive dated, which is
+  Phase 6 and §14.3.
+- *Tone is a laddered capability at OBSERVE, so nothing recommends one.* Three
+  equal options and one fixed default chosen here, not computed from anything
+  about this client. Suggesting `Firm` because they always pay on day 40 is
+  RECALL and it needs §14.
+
+**Bugs found by the new checks**
+
+- The number scanner joined two separate figures across a comma-and-space, so
+  "as of 20 October 2026, 40 days beyond" read as the number `202640` and failed
+  a formal notice that was perfectly correct. A digit run now allows exactly one
+  separator between groups; two in a row ends it.
+- The comparables matcher and the formal notice wording both had arithmetic that
+  read wrong: the notice said "29 days beyond the agreed net 14 day terms", which
+  is not the interval it was measuring.
+
+**Still open**
+
+- **Pages is still not enabled.** The repo is public now and the workflow runs —
+  `npm ci` and `npm run build` are green on CI — but it fails at
+  `actions/configure-pages` because Pages itself is off. Settings → Pages →
+  Source: GitHub Actions, then re-run the job. It cannot be set from code.
+- The chase has never been run against a real API key, only against the fixture.
+  The validator is strict enough that a live model failing it twice is a real
+  possibility, and the raw-output path has not been seen by a human.
+- Print output has still never been eyeballed by a human.
+- Phase 5 (RECALL) next: the machinery is built and tested, there is no UI, and
+  the seeded-history fixture for Act 3 does not exist yet.
+
+**Next:** Phase 5 — RECALL: the user's own past prices beside the blank field.
+
+---
+
 ## The capability ladder — pricing ships at OBSERVE (2026-08-27)
 
 The spec gained a principle the built code violated: **the AI never sets prices,
