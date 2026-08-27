@@ -1,5 +1,84 @@
 # Progress
 
+## Restructure — Backpay is a record, not an invoicing tool (2026-08-27)
+
+The concept was stress-tested and repositioned before more features landed.
+Backpay is now a record of what was agreed on a project, and documents — quotes,
+scope summaries, invoice line items, chase emails, a plain "here's what we
+agreed" reply — are outputs generated from it. Invoicing is one output among
+several rather than the point.
+
+`CLAUDE.md` was rewritten to match: §1 and §6 (phases) rebuilt, §3 (privacy) is
+new, VAT gone, time tracking permanently out of scope, and everything after §2
+shifted down one number.
+
+**What shipped**
+
+- **`Deal` is `ProjectRecord`.** Not `Record` — `Record<K, V>` is a TypeScript
+  built-in and declaring our own would shadow it in every importing file, and
+  `Partial<Record<K, V>>` is already used in `types.ts`. The product noun stays
+  "record" everywhere a human reads it.
+- **VAT removed entirely** — the constant, `vatOf()`, the record field, the
+  settings input, the quote's VAT and subtotal rows, and the tax-advice caveat.
+  The quote shows one Total.
+- **Privacy (§3).** Settings now states plainly where the text goes. Fonts are
+  self-hosted; `dist/` contains no third-party host at all.
+- **Redaction toggle**, off by default, with the §3 ordering enforced in
+  `runExtraction`: verify quotes against the text that was *sent*, then restore.
+- **Start a blank record.** A second, equal way in — no thread, no API call. The
+  review screen collapses to one column with no provenance chips.
+- **A copyable "what we agreed" summary**, so Phase 1 ends in something sendable
+  rather than owing that to Phase 3.
+- The rest of the §5 model: `origin`, `absorbedWork`, `AbsorbedItem`, and
+  `ScopeFlag`'s new shape.
+
+**Decisions, and the things that nearly went wrong**
+
+- *VAT was removed completely, not just the set-aside.* The brief said "including
+  the config constant", and a per-record VAT rate would still want a default
+  constant. If the narrower reading was meant, it is a small revert.
+- *Redaction breaks provenance unless the order is pinned.* The model only ever
+  sees redacted text, so its verbatim quotes are substrings of the *redacted*
+  thread. Verifying against the original would fail every quote and read as the
+  model misbehaving. Order is now: redact → send → verify against what was sent →
+  restore → highlight against the original.
+- *One placeholder per spelling.* The hero thread says "Nina" in the header and
+  "nina" in the sign-off. Matching case-insensitively but restoring both to
+  "Nina" rewrites the user's own words, and the restored quote stops being a
+  verbatim substring. So `Nina` → `[Client]`, `nina` → `[client]`.
+- *Only client-side names are redacted.* `parseThread` labels an unnamed creator
+  "You". Redacting that would have turned every "you" and "you'd" in the thread
+  into a placeholder — caught by a check, not by reading.
+- *A short name must not be redacted out of the middle of a word.* A client
+  called "Ali" would otherwise turn "quality" into "qu[Client]ty". Word-boundary
+  guards, with a check.
+- *Fonts live in `src/fonts/`, not `public/fonts/`* as §4 first said, so Vite
+  fingerprints them and rewrites URLs under `base`. Bricolage and Inter are
+  variable fonts, so the 14 downloaded files deduplicate to 8.
+- *Phase 1 now ships the summary.* §1 says every session ends in something
+  sendable; outputs are Phase 3, which would have left two phases of a screen
+  that only stores.
+- *An unset price prints "price not set", never "0,00 €".* A zero in a document
+  the client reads is the user agreeing to free work by accident.
+
+**Still open**
+
+- The **67% statistic in the pitch is uncited.** The spec requires every number
+  in the product to be traceable; the pitch should not be the exception. Find the
+  study or say "most freelancers".
+- Same blocker as every phase so far: **the GitHub repo does not exist**, so
+  nothing is verified on a live Pages URL and none of Phases 0–2 can reach step 3
+  of §10's definition of done.
+- Nobody has opened this in a browser. The build is clean, lint is clean, and 79
+  checks pass, but the redaction toggle, the blank-record flow and the print view
+  have not been looked at by a human.
+- `PROGRESS.md` entries below this one use the old numbering and the name `Deal`.
+  Left as written — they are a record of what was decided when.
+
+**Next:** Phase 2 — scope defense.
+
+---
+
 ## Phase 2 — Quote ✅ (needs a look on the live URL)
 
 **What shipped**

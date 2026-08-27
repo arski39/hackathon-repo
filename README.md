@@ -1,26 +1,42 @@
 # Backpay
 
-Backpay takes the messy client conversations a freelance creative already has,
-and turns them into the money paperwork they hate doing: a quote, a scope,
-milestone invoices, and the chase email nobody wants to write.
+Freelance projects are agreed in scattered messages and never written down.
+Backpay turns the conversation into a record of what was agreed, and the record
+into whatever you need to send.
 
-Money admin is objective work with subjective pain. The rules are deterministic
-— this scope costs this much, this invoice is 40 days late — but doing it feels
-awful, because it means pricing your own work and asking people for money.
-Backpay does the mechanical part so you only have to approve it.
+Paste the thread, or type it in if the whole thing was agreed on a call. You get
+back a structured record where every number points at the sentence it came from.
+From there it becomes a quote, a scope summary, invoice line items, a chase
+email, or a plain "here's what we agreed" reply for when a client misremembers.
+
+Invoicing is one output among several. It is not the point.
 
 **Live:** https://YOUR-USERNAME.github.io/backpay/
 
 ## Nothing sends. Nothing charges.
 
 Backpay drafts and displays. It has no send button, no payment integration, and
-no access to your email or bank. When an invoice or a chase email is ready, you
-copy it and send it yourself from your own client. That's deliberate and it is
-not going to change.
+no access to your email or bank. When something is ready, you copy it and send it
+yourself from your own client. That's deliberate and it is not going to change.
 
-Everything the AI produces is a first draft. Every generated field is editable,
-and every extracted value shows the exact sentence in the thread it came from,
-so you can check that nobody invented a price.
+Everything the model produces is a draft, never truth. Every field is editable,
+and every extracted value shows the exact sentence in the thread it came from, so
+you can check that nobody invented a price.
+
+## Where your text goes
+
+Your thread text is sent to Anthropic to be read, using your own API key. It goes
+nowhere else. There is no Backpay server. Everything you create stays in this
+browser, and nothing about how you use this app is recorded or sent anywhere.
+
+No analytics, no telemetry, no error reporting, no third-party scripts — the
+fonts are self-hosted rather than loaded from a CDN for exactly this reason. The
+only outbound request the app makes is to `api.anthropic.com`.
+
+There is also a **redaction toggle**, off by default, which swaps client names
+and email addresses for placeholders before the thread is sent and puts them back
+locally. It is best-effort pattern matching, not anonymisation: a client
+mentioned only by a nickname will go through untouched.
 
 ## Running it locally
 
@@ -31,6 +47,7 @@ npm install
 npm run dev      # http://localhost:5173/backpay/
 npm run build    # type-check and produce dist/
 npm run lint
+npm run check    # parse -> validate -> totals -> redaction round trip
 ```
 
 ## Demo Mode
@@ -58,19 +75,25 @@ It would not be acceptable if we shipped a key of our own.
 ## Deliberately not built
 
 No real payments, no Stripe, no bank integration, no accounting export, no
-legally binding contracts, no email OAuth, no accounts, no login. Not stubbed —
-absent.
+legally binding contracts, no accounts, no login. Not stubbed — absent.
 
-The VAT figure Backpay shows is a set-aside estimate to help you park money, not
-tax advice. The chase emails are drafts, not legal notices.
+**No time tracking, ever.** We don't know how long anything took, so there is no
+effective hourly rate and no true project cost. A number derived from hours
+nobody measured is invention, which is the one thing this tool exists not to do.
+
+**No VAT.** Most Finnish freelancers invoice through a laskutuspalvelu that
+handles it automatically, so a VAT figure here would be noise at best and a
+second, disagreeing number at worst. Amounts are the amounts you agreed.
+
+Chase emails are drafts, not legal notices.
 
 ## Deploying your own
 
 Pushing to `main` runs `.github/workflows/deploy.yml`, which builds and publishes
 to GitHub Pages.
 
-One thing you must do by hand the first time, because it cannot be set from
-code: **Settings → Pages → Source: GitHub Actions.** Until you do, the deploy job
+One thing you must do by hand the first time, because it cannot be set from code:
+**Settings → Pages → Source: GitHub Actions.** Until you do, the deploy job
 fails.
 
 If you fork this under a different repo name, change `base` in
