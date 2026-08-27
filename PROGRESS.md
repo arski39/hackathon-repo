@@ -1,5 +1,66 @@
 # Progress
 
+## Phase 2 — Quote ✅ (needs a look on the live URL)
+
+**What shipped**
+
+- A quote document: line items, subtotal, VAT, total, payment terms with the
+  deposit worked out in euros, delivery date, revisions, usage rights, notes.
+- Print stylesheet. `window.print()` produces the document with the app chrome
+  stripped, 18mm margins, and no line item split across a page break — a row
+  broken in half looks like a mistake in a document someone is deciding whether
+  to pay.
+- The usage-rights gap is stated **on the document**, not just nudged on
+  screen: "No usage is granted by this quote until the media, term and
+  territory are set in writing." A gap the client can see is a gap they can
+  answer.
+- "Your details" in Settings — name, email, business ID. A quote with no sender
+  is not something anyone would actually send.
+- Quotes carry a validity date, 30 days out. A quote with no expiry is a price
+  the client can hold you to in six months.
+- The deal is now persisted, so a refresh mid-edit doesn't throw the work away.
+
+**A bug this phase found in Phase 1**
+
+Writing the totals surfaced a contradiction between two rules in the extraction
+prompt. Rule 5 said to put a lump budget on the line it most clearly refers to;
+rule 7 said "3 reels" means one line with quantity 3. Together they produced
+3 × €2000 = **€6000** for a client who said "budget-ish 2k" — the demo would
+have opened by showing the AI tripling the price, which is precisely the
+failure the provenance lines exist to disprove.
+
+Fixed at the prompt: when a lump sum covers a bundle, quantity is 1 and the
+count goes in the description, so quantity × unitPrice equals the stated budget
+exactly. Explicitly *not* fixed by dividing 2000 by 3 — that invents a per-unit
+precision the client never gave and rounds badly (€666,67 × 3 = €2000,01).
+`npm run check` now asserts the subtotal equals the stated budget, so this
+cannot come back silently.
+
+**Decisions**
+
+- *Deposit is computed on the gross total, not the subtotal.* It's the number
+  that actually leaves the client's account.
+- *Dates spell the month out.* 09/12 is two different days depending on which
+  side of the Atlantic the client is on.
+- *VAT stays a line on the quote, with the caveat once and quietly at the
+  foot.* §4 wants it labelled a user-checkable assumption; a client-facing
+  document still needs the line.
+- *No PDF library.* §3 said print stylesheet, and it is genuinely the better
+  output.
+
+**Still open**
+
+- Not verified on the live Pages URL or with a real API key — same blocker as
+  Phases 0 and 1: the GitHub repo does not exist yet.
+- Print output has not been eyeballed. The CSS is right by construction but
+  nobody has actually hit Ctrl+P.
+- Quotes have no number yet. Sequential numbering arrives with invoices in
+  Phase 3.
+
+**Next:** Phase 3 — Invoices.
+
+---
+
 ## Spec amendment — client memory and inbox connection (2026-08-27)
 
 Not a phase. A decision, recorded so the repo stops contradicting itself.
