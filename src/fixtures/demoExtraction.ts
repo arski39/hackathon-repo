@@ -13,8 +13,8 @@ export const DEMO_EXTRACTION = JSON.stringify(
     projectName: 'Launch content',
     deliverables: [
       {
-        description: 'Vertical reel, 15s, for launch',
-        quantity: 3,
+        description: '3 vertical reels, 15s, for launch',
+        quantity: 1,
         unitPriceCents: 200000,
         source: {
           quote: '3 reels for the launch, vertical, 15s ish',
@@ -38,7 +38,7 @@ export const DEMO_EXTRACTION = JSON.stringify(
     usageRights: null,
     paymentTerms: { depositPercent: null, netDays: null },
     notes:
-      'The 2k budget is stated as one lump for the whole job and is sitting on the reels line. Quantity of stills is "5 or 6" — confirm before quoting.',
+      'The 2k is stated as one lump for the whole job and is sitting on the reels line as a package price, so the stills are currently unpriced. Quantity of stills is "5 or 6" — confirm before quoting.',
     fieldSources: {
       clientName: null,
       projectName: { quote: 'do the content for it', messageId: 'msg_1' },
