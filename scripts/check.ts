@@ -5,6 +5,7 @@ import { DEMO_EXTRACTION } from '../src/fixtures/demoExtraction'
 import { formatEuros, centsFromEuros } from '../src/lib/money'
 import { quoteTotals, addDays, quoteValidUntil, formatDate } from '../src/lib/quote'
 import { redactMessages, restoreRecord, restoreText } from '../src/lib/redact'
+import { blankRecord } from '../src/lib/blankRecord'
 import type { Message } from '../src/types'
 
 let failed = 0
@@ -151,6 +152,18 @@ const withEmail: Message[] = [
 const emailRed = redactMessages(withEmail)
 check('an email address is replaced whole', emailRed.messages[0].body.includes('[EMAIL_1]') && !emailRed.messages[0].body.includes('studio.fi'), emailRed.messages[0].body)
 check('...and round trips exactly', restoreText(emailRed.messages[0].body, emailRed.map) === withEmail[0].body)
+
+
+// -- The hand-built record (CLAUDE.md §6, Phase 1) --------------------------
+const blank = blankRecord()
+check('a blank record is marked manual', blank.origin === 'manual')
+check('...has no thread behind it', blank.sourceThread.length === 0)
+check('...starts with one empty line to type into', blank.deliverables.length === 1 && blank.deliverables[0].description === '')
+check('...carries no provenance', !blank.fieldSources && !blank.deliverables[0].source)
+check('...has an absorbed list ready', Array.isArray(blank.absorbedWork) && blank.absorbedWork.length === 0)
+check('...defaults to net 14', blank.paymentTerms.netDays === 14)
+check('...totals to nothing without crashing', quoteTotals(blank).total === 0)
+check('an extracted record is marked extracted', result.ok && result.record.origin === 'extracted')
 
 
 // -- Dates -----------------------------------------------------------------

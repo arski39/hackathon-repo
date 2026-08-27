@@ -4,6 +4,7 @@ import { QuoteView } from './components/QuoteView'
 import { SettingsPanel, type Settings } from './components/SettingsPanel'
 import { ThreadInput } from './components/ThreadInput'
 import { ApiError } from './lib/anthropic'
+import { blankRecord } from './lib/blankRecord'
 import { parseThread } from './lib/parseThread'
 import { runExtraction } from './lib/runExtraction'
 import { useLocalStorage } from './lib/useLocalStorage'
@@ -125,6 +126,12 @@ export default function App() {
               setFailure(null)
             }}
             onSubmit={readTheThread}
+            onStartBlank={() => {
+              setRecord(blankRecord())
+              setWarnings([])
+              setFailure(null)
+              setView('review')
+            }}
             busy={busy}
             demoMode={settings.demoMode}
             error={failure}

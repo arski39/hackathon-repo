@@ -33,6 +33,11 @@ export type RecordFieldSources = Partial<Record<RecordFieldKey, Provenance>>
 
 export type ProjectRecord = {
   id: string
+  /** An extracted record is a draft to be checked; a hand-typed one is the
+   *  user's own words. The review screen says something different for each.
+   *  Deriving this from sourceThread.length breaks the moment someone pastes
+   *  a thread into a record they started blank. */
+  origin: 'extracted' | 'manual'
   /** Resolved once the user confirms which client this is. Null until then —
    *  extraction produces a name long before it can know it's the same Nina as
    *  last time. See section 13. */
@@ -52,6 +57,9 @@ export type ProjectRecord = {
   notes: string
   sourceThread: Message[]
   fieldSources?: RecordFieldSources
+  /** Work delivered and never billed. Stored, not merely counted — section 6
+   *  phase 5 has nothing behind its absorbed total otherwise. */
+  absorbedWork: AbsorbedItem[]
   createdAt: string
 }
 
@@ -89,9 +97,34 @@ export type ScopeFlag = {
   recordId: string
   messageId: string
   whatWasAsked: string
-  whyItsOutOfScope: string
-  suggestedPrice: number       // cents
-  status: 'open' | 'billed' | 'dismissed'
+  /** Renamed from whyItsOutOfScope. The old name asks the model to justify a
+   *  verdict; this one asks it to state a difference. Field names shape output,
+   *  and section 8 requires these to be neutral and factual. */
+  differenceFromRecord: string
+  /** Cents, or null when nothing in the record supports a price. Section 8
+   *  forbids generating a monetary figure the user cannot trace, and a change
+   *  order price is derived from a rate already in the record — never invented. */
+  suggestedPrice: number | null
+  /** Which line in the record the price came from. Null with suggestedPrice. */
+  priceBasis: string | null
+  /** Cents. What the work is worth if absorbed rather than billed. Defaults to
+   *  suggestedPrice and edits downward — people absorb at a goodwill value
+   *  below what they would have charged, and forcing the two equal would
+   *  inflate the absorbed total. */
+  estimatedValue: number | null
+  status: 'open' | 'billed' | 'absorbed' | 'dismissed'
+}
+
+/** Frozen at the moment of absorbing, so later edits to the flag or to the
+ *  record's rates cannot quietly restate history. */
+export type AbsorbedItem = {
+  id: string
+  recordId: string
+  description: string
+  estimatedValue: number       // cents
+  absorbedAt: string           // ISO date
+  /** Why, in the user's own words. Never leaves the app. */
+  note: string
 }
 
 // ─── Section 13: client memory and themes ──────────────────────────────────

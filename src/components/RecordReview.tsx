@@ -69,17 +69,21 @@ export function RecordReview({
   )
 
   const sources = record.fieldSources ?? {}
+  // A record started by hand has no thread to point at. Single column, no
+  // connector, and nothing said about the absence (section 7).
+  const hasThread = record.sourceThread.length > 0
 
   return (
     <div className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight">
-            Check what we read
+            {hasThread ? 'Check what we read' : 'What you agreed'}
           </h1>
           <p className="mt-1 max-w-xl text-slate">
-            Every value points at the sentence it came from. Change anything
-            that&rsquo;s wrong &mdash; this is a first draft, not a verdict.
+            {hasThread
+              ? 'Every value points at the sentence it came from. Change anything that’s wrong — this is a first draft, not a verdict.'
+              : 'Nothing here was read from anywhere. Type in what you agreed and it becomes a record you can send from.'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -88,7 +92,7 @@ export function RecordReview({
             onClick={onStartOver}
             className="min-h-11 cursor-pointer rounded-md border border-line px-4 py-2 text-sm hover:border-slate/40"
           >
-            Paste a different thread
+            {hasThread ? 'Paste a different thread' : 'Start over'}
           </button>
           <button
             type="button"
@@ -116,9 +120,11 @@ export function RecordReview({
 
       <div
         ref={frameRef}
-        className="relative mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-10"
+        className={`relative mt-6 grid grid-cols-1 gap-6 ${
+          hasThread ? 'lg:grid-cols-2 lg:gap-10' : 'max-w-2xl'
+        }`}
       >
-        {connector ? (
+        {connector && hasThread ? (
           <svg
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 z-10 h-full w-full overflow-visible"
@@ -140,16 +146,21 @@ export function RecordReview({
           </svg>
         ) : null}
 
-        <ThreadColumn
-          messages={record.sourceThread}
-          active={active}
-          markRef={markRef}
-          scrollRef={scrollRef}
-        />
+        {hasThread ? (
+          <ThreadColumn
+            messages={record.sourceThread}
+            active={active}
+            markRef={markRef}
+            scrollRef={scrollRef}
+          />
+        ) : null}
 
-        <section aria-label="What we read from it" className="min-w-0">
+        <section
+          aria-label={hasThread ? 'What we read from it' : 'The record'}
+          className="min-w-0"
+        >
           <h2 className="font-display text-sm font-semibold tracking-wide text-slate uppercase">
-            What it means
+            {hasThread ? 'What it means' : 'The record'}
           </h2>
 
           <div className="mt-3 space-y-1">
@@ -160,6 +171,7 @@ export function RecordReview({
                 source={sources.clientName}
                 provenance={provenance}
                 registerRow={registerRow}
+                showSource={hasThread}
               >
                 <input
                   id="clientName"
@@ -174,6 +186,7 @@ export function RecordReview({
                 source={sources.projectName}
                 provenance={provenance}
                 registerRow={registerRow}
+                showSource={hasThread}
               >
                 <input
                   id="projectName"
@@ -204,14 +217,16 @@ export function RecordReview({
                           setDeliverable(item.id, { description: e.target.value })
                         }
                       />
-                      <div className="mt-1.5">
-                        <SourceButton
-                          fieldKey={`${item.id}.line`}
-                          label={item.description || 'this line'}
-                          source={item.source}
-                          provenance={provenance}
-                        />
-                      </div>
+                      {hasThread ? (
+                        <div className="mt-1.5">
+                          <SourceButton
+                            fieldKey={`${item.id}.line`}
+                            label={item.description || 'this line'}
+                            source={item.source}
+                            provenance={provenance}
+                          />
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
@@ -252,19 +267,40 @@ export function RecordReview({
                             }
                           />
                         </div>
-                        <div className="mt-1.5">
-                          <SourceButton
-                            fieldKey={`${item.id}.price`}
-                            label={`the price of ${item.description || 'this line'}`}
-                            source={item.priceSource}
-                            provenance={provenance}
-                          />
-                        </div>
+                        {hasThread ? (
+                          <div className="mt-1.5">
+                            <SourceButton
+                              fieldKey={`${item.id}.price`}
+                              label={`the price of ${item.description || 'this line'}`}
+                              source={item.priceSource}
+                              provenance={provenance}
+                            />
+                          </div>
+                        ) : null}
                       </div>
 
                       <p className="ml-auto font-mono tabular-nums">
                         {formatEuros(item.quantity * item.unitPrice)}
                       </p>
+
+                      {record.deliverables.length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            patch({
+                              deliverables: record.deliverables.filter(
+                                (d) => d.id !== item.id,
+                              ),
+                            })
+                          }
+                          className="min-h-11 cursor-pointer px-1 text-sm text-slate underline underline-offset-4 hover:text-ink"
+                        >
+                          Remove
+                          <span className="sr-only">
+                            {` the line "${item.description || 'untitled'}"`}
+                          </span>
+                        </button>
+                      ) : null}
                     </div>
                   </li>
                 ))}
@@ -304,6 +340,7 @@ export function RecordReview({
                 source={sources.deadline}
                 provenance={provenance}
                 registerRow={registerRow}
+                showSource={hasThread}
               >
                 <input
                   id="deadline"
@@ -319,6 +356,7 @@ export function RecordReview({
                 source={sources.revisionsIncluded}
                 provenance={provenance}
                 registerRow={registerRow}
+                showSource={hasThread}
               >
                 <input
                   id="revisionsIncluded"
@@ -341,6 +379,7 @@ export function RecordReview({
               source={sources.usageRights}
               provenance={provenance}
               registerRow={registerRow}
+              showSource={hasThread}
               hint={
                 record.usageRights
                   ? undefined
@@ -366,6 +405,7 @@ export function RecordReview({
                 source={sources.depositPercent}
                 provenance={provenance}
                 registerRow={registerRow}
+                showSource={hasThread}
               >
                 <div className="flex items-center gap-1.5">
                   <input
@@ -396,6 +436,7 @@ export function RecordReview({
                 source={sources.netDays}
                 provenance={provenance}
                 registerRow={registerRow}
+                showSource={hasThread}
               >
                 <div className="flex items-center gap-1.5">
                   <span className="text-slate">Net</span>

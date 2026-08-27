@@ -8,6 +8,9 @@ type Props = {
   label: string
   hint?: string
   source?: Provenance
+  /** False on a hand-built record: there is no thread, so there is nothing to
+   *  point at and nothing to apologise for. */
+  showSource?: boolean
   provenance: ProvenanceApi
   registerRow: (key: string, node: HTMLDivElement | null) => void
   children: ReactNode
@@ -18,6 +21,7 @@ export function Field({
   label,
   hint,
   source,
+  showSource = true,
   provenance,
   registerRow,
   children,
@@ -43,14 +47,16 @@ export function Field({
           {hint}
         </p>
       ) : null}
-      <div className="mt-2">
-        <SourceButton
-          fieldKey={fieldKey}
-          label={label}
-          source={source}
-          provenance={provenance}
-        />
-      </div>
+      {showSource ? (
+        <div className="mt-2">
+          <SourceButton
+            fieldKey={fieldKey}
+            label={label}
+            source={source}
+            provenance={provenance}
+          />
+        </div>
+      ) : null}
     </div>
   )
 }

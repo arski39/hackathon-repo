@@ -163,6 +163,7 @@ export function validateRecord(raw: string, messages: Message[]): ValidationResu
 
   const record: ProjectRecord = {
     id: newId('record'),
+    origin: 'extracted',
     // Stays null until the user confirms which client this is; extraction can
     // read a name but has no way to know it's the same Nina as last time.
     clientId: null,
@@ -182,6 +183,7 @@ export function validateRecord(raw: string, messages: Message[]): ValidationResu
     notes: asText(parsed.notes) ?? '',
     sourceThread: messages,
     fieldSources,
+    absorbedWork: [],
     createdAt: new Date().toISOString(),
   }
 

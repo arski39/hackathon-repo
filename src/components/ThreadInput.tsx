@@ -5,6 +5,7 @@ type Props = {
   value: string
   onChange: (value: string) => void
   onSubmit: () => void
+  onStartBlank: () => void
   busy: boolean
   demoMode: boolean
   error: { message: string; hint?: string } | null
@@ -15,6 +16,7 @@ export function ThreadInput({
   value,
   onChange,
   onSubmit,
+  onStartBlank,
   busy,
   demoMode,
   error,
@@ -31,7 +33,7 @@ export function ThreadInput({
   return (
     <div className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-8 sm:py-16">
       <h1 className="font-display text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl">
-        Paste your first client thread to see what you&rsquo;re owed.
+        Paste the thread. Get back what you agreed.
       </h1>
       <p className="mt-3 max-w-xl text-slate">
         Forwarded email, a chat export, or just the messy paragraph they sent
@@ -83,6 +85,18 @@ export function ThreadInput({
           </p>
         </div>
       </form>
+
+      <div className="mt-8 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-line pt-6">
+        <p className="text-slate">Agreed on a call, with nothing in writing?</p>
+        <button
+          type="button"
+          onClick={onStartBlank}
+          disabled={busy}
+          className="min-h-11 cursor-pointer font-medium underline underline-offset-4 disabled:opacity-40"
+        >
+          Start a blank record
+        </button>
+      </div>
 
       {busy ? (
         <div
