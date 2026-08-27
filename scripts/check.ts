@@ -10,6 +10,8 @@ import { agreedSummary } from '../src/lib/summary'
 import { parseFollowUp } from '../src/lib/followUp'
 import { validateScopeFlags } from '../src/lib/validateScopeFlags'
 import { changeOrderText } from '../src/lib/changeOrder'
+import { nextInvoiceNumber, depositInvoice, balanceInvoice, changeOrderInvoice, invoiceTotal, isOverdue, daysOverdue } from '../src/lib/invoices'
+import { quoteText, scopeSummaryText, agreedReplyText, invoiceText } from '../src/lib/outputs'
 import { restoreFlags, redactRecord } from '../src/lib/redact'
 import { DEMO_SCOPE_FLAGS } from '../src/fixtures/demoScopeFlags'
 import { SCOPE_CREEP_MESSAGE } from '../src/fixtures/heroThread'
@@ -277,6 +279,80 @@ if (redFlags.ok) {
   const backFlag = restoreFlags(redFlags.flags, scopeRed.map)[0]
   check('...and its quote is verbatim in the original message', incoming.some((m) => m.body.includes(backFlag.source!.quote)), backFlag.source!.quote)
 }
+
+
+// -- Outputs (CLAUDE.md §6, Phase 3) ----------------------------------------
+const withDep = { ...base, paymentTerms: { depositPercent: 40, netDays: 14 } }
+
+check('the first number of the year is 001', nextInvoiceNumber([], 2026) === '2026-001')
+const dep = depositInvoice(withDep, nextInvoiceNumber([], 2026), '2026-08-27')
+check('a deposit invoice bills the deposit, not the total', invoiceTotal(dep) === 80000, formatEuros(invoiceTotal(dep)))
+check('...is due net 14 from issue', dep.dueAt === '2026-09-10', dep.dueAt)
+check('...starts as a draft', dep.status === 'draft' && dep.paidAt === null)
+
+const bal = balanceInvoice(withDep, nextInvoiceNumber([dep], 2026), dep, '2026-08-27')
+check('numbering runs on', bal.number === '2026-002', bal.number)
+check('the balance shows the deposit as a deduction', bal.lineItems.some((l) => l.unitPrice === -80000))
+check('...and totals to the remainder', invoiceTotal(bal) === 120000, formatEuros(invoiceTotal(bal)))
+check('deposit + balance is the whole agreed total', invoiceTotal(dep) + invoiceTotal(bal) === quoteTotals(withDep).total)
+
+check('a year rolls the sequence over', nextInvoiceNumber([dep, bal], 2027) === '2027-001')
+check('a gap in numbering never reuses a number', nextInvoiceNumber([{ ...dep, number: '2026-009' }], 2026) === '2026-010')
+
+// Line items are a snapshot: editing the record afterwards must not rewrite
+// an invoice that has already gone out.
+const edited = { ...withDep, deliverables: withDep.deliverables.map((d) => ({ ...d, unitPrice: 999999 })) }
+check('an issued invoice ignores later edits to the record', invoiceTotal(balanceInvoice(withDep, '2026-003', null, '2026-08-27')) !== invoiceTotal(balanceInvoice(edited, '2026-004', null, '2026-08-27')))
+check('...because its lines are copies, not references', bal.lineItems.every((l) => !withDep.deliverables.some((d) => d.id === l.id)))
+
+// Overdue is the loud thing (§7), so it had better be right.
+const sent = { ...bal, status: 'sent' as const }
+check('a draft is never overdue, however old', !isOverdue({ ...bal, dueAt: '2020-01-01' }, '2026-08-27'))
+check('a sent invoice past its due date is overdue', isOverdue(sent, '2026-09-11'))
+check('...but not on the due date itself', !isOverdue(sent, '2026-09-10'))
+check('...and days are counted from the due date', daysOverdue(sent, '2026-10-20') === 40, String(daysOverdue(sent, '2026-10-20')))
+check('a paid invoice is never overdue', !isOverdue({ ...sent, status: 'paid' }, '2026-12-01'))
+
+// A change order only bills what was billed, and only what has a price.
+const coFlags: ScopeFlag[] = scope.ok
+  ? [
+      { ...scope.flags[0], status: 'billed', suggestedPrice: 45000 },
+      { ...scope.flags[1], status: 'billed', suggestedPrice: null },
+      { ...scope.flags[2], status: 'absorbed', estimatedValue: 15000 },
+    ]
+  : []
+const co = changeOrderInvoice(base, coFlags, '2026-005', '2026-08-27')
+check('a change-order invoice bills only the priced billed flags', co !== null && co.lineItems.length === 1 && invoiceTotal(co) === 45000)
+check('...and absorbed work never reaches an invoice', co !== null && !co.lineItems.some((l) => l.description === coFlags[2].whatWasAsked))
+check('no billable lines means no invoice at all', changeOrderInvoice(base, [], '2026-006') === null)
+
+// -- The four documents -----------------------------------------------------
+const sender = { yourName: 'Aaro', yourEmail: 'a@example.com', businessId: '1234567-8' }
+
+const qText = quoteText(base, sender, '2026-08-27')
+check('the quote text carries the sender', qText.includes('From: Aaro') && qText.includes('Business ID: 1234567-8'))
+check('...and an expiry', qText.includes('Valid until: 26 September 2026'))
+check('...and never prints a zero price', !hasZeroPricedLine(qText) && qText.includes('price not set'))
+
+const scopeText = scopeSummaryText({ ...base, absorbedWork: [{ id: 'abs_1', recordId: base.id, description: 'Story frames', estimatedValue: 15000, absorbedAt: '2026-08-27', note: 'goodwill' }] }, coFlags)
+check('the scope summary separates agreed from added', scopeText.includes('Agreed at the start') && scopeText.includes('Added since, and invoiced separately'))
+check('...names absorbed work', scopeText.includes('at no additional charge') && scopeText.includes('Story frames'))
+check('...but never prices it', !scopeText.includes(formatEuros(15000)))
+check('...never leaks the private note', !scopeText.includes('goodwill'))
+check('...and omits dismissed flags entirely', !scopeSummaryText(base, [{ ...coFlags[0], status: 'dismissed' }]).includes(coFlags[0].whatWasAsked))
+
+const reply = agreedReplyText(base)
+check('the reply is addressed to the client', reply.startsWith('Hi Nina,'))
+check('...quotes the thread', reply.includes('from: "budget-ish 2k"'))
+check('...invites a correction rather than closing the argument', reply.includes("tell me and I'll update it"))
+check('...never accuses', !/as agreed|as you can see|to be clear|as discussed|per our/i.test(reply))
+check('...names the usage-rights gap', reply.includes("we haven't set these yet"))
+
+const invText = invoiceText(withDep, bal, sender)
+check('the invoice text carries its number and dates', invText.includes('Invoice 2026-002') && invText.includes('Due: 10 September 2026'))
+check('...shows the deduction as a negative, not as a gap', invText.includes('Less deposit invoiced (2026-001)') && invText.includes(formatEuros(-80000)))
+check('...totals what is actually due', invText.includes('Total due: ' + formatEuros(120000)))
+check('every document says VAT is not calculated', [qText, scopeText, invText].every((t) => t.includes('VAT is not included or calculated')))
 
 
 // -- Dates -----------------------------------------------------------------

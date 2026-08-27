@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { RecordReview } from './components/RecordReview'
-import { QuoteView } from './components/QuoteView'
+import { Outputs } from './components/Outputs'
 import { ScopeDefense } from './components/ScopeDefense'
 import { SettingsPanel, type Settings } from './components/SettingsPanel'
 import { ThreadInput } from './components/ThreadInput'
@@ -9,10 +9,10 @@ import { blankRecord } from './lib/blankRecord'
 import { parseThread } from './lib/parseThread'
 import { runExtraction } from './lib/runExtraction'
 import { useLocalStorage } from './lib/useLocalStorage'
-import type { ProjectRecord, ScopeFlag } from './types'
+import type { Invoice, ProjectRecord, ScopeFlag } from './types'
 
 // No router: GitHub Pages 404s on client-side routes, so views switch on state.
-type View = 'input' | 'review' | 'quote' | 'scope'
+type View = 'input' | 'review' | 'outputs' | 'scope'
 
 type Failure = { message: string; hint?: string; raw?: string }
 
@@ -36,6 +36,9 @@ export default function App() {
   // Persisted, so a refresh mid-edit doesn't throw the work away.
   const [record, setRecord] = useLocalStorage<ProjectRecord | null>('backpay.record', null)
   const [flags, setFlags] = useLocalStorage<ScopeFlag[]>('backpay.scopeFlags', [])
+  // Invoice numbers run across every record, so these are not cleared with
+  // the record — a reused number is worse than an orphaned one.
+  const [invoices, setInvoices] = useLocalStorage<Invoice[]>('backpay.invoices', [])
 
   const [view, setView] = useState<View>(record ? 'review' : 'input')
   const [warnings, setWarnings] = useState<string[]>([])
@@ -147,7 +150,7 @@ export default function App() {
             warnings={warnings}
             onChange={setRecord}
             onStartOver={() => setView('input')}
-            onSeeQuote={() => setView('quote')}
+            onSeeQuote={() => setView('outputs')}
             onAddMessage={() => setView('scope')}
             openFlags={
               flags.filter((f) => f.recordId === record.id && f.status === 'open')
@@ -164,9 +167,12 @@ export default function App() {
             onBack={() => setView('review')}
           />
         ) : (
-          <QuoteView
+          <Outputs
             record={record}
+            flags={flags}
+            invoices={invoices}
             settings={settings}
+            onInvoicesChange={setInvoices}
             onBack={() => setView('review')}
           />
         )}

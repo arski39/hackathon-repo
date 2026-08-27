@@ -7,35 +7,23 @@ import type { ProjectRecord } from '../types'
 type Props = {
   record: ProjectRecord
   settings: Settings
-  onBack: () => void
+  /** Phase 3 owns the chrome around this sheet, but the usage-rights nudge
+   *  still needs a way back to the field it is nagging about. */
+  onFixUsageRights: () => void
 }
 
-export function QuoteView({ record, settings, onBack }: Props) {
+/** The quote document itself. The actions live in Outputs (§6, Phase 3), so
+ *  the same sheet can be printed from anywhere without carrying its own
+ *  navigation into the print output. */
+export function QuoteSheet({ record, settings, onFixUsageRights }: Props) {
   const issuedAt = useMemo(() => today(), [])
   const totals = useMemo(() => quoteTotals(record), [record])
   const hasDeposit = record.paymentTerms.depositPercent > 0
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-5 py-8 sm:px-8">
-      <div className="no-print flex flex-wrap items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="min-h-11 cursor-pointer rounded-md border border-line px-4 py-2 text-sm hover:border-slate/40"
-        >
-          Back to editing
-        </button>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="min-h-11 cursor-pointer rounded-md bg-ink px-5 py-2.5 font-medium text-paper transition-opacity duration-150 hover:opacity-90"
-        >
-          Print or save as PDF
-        </button>
-      </div>
-
+    <div className="mx-auto w-full max-w-3xl">
       {!record.usageRights ? (
-        <div className="no-print mt-5 rounded-lg border border-overdue/40 bg-overdue/6 px-4 py-4">
+        <div className="no-print rounded-lg border border-overdue/40 bg-overdue/6 px-4 py-4">
           <p className="font-medium">This quote grants no usage rights.</p>
           <p className="mt-1 text-slate">
             Nothing in the thread said where this work can run, for how long, or
@@ -46,7 +34,7 @@ export function QuoteView({ record, settings, onBack }: Props) {
           </p>
           <button
             type="button"
-            onClick={onBack}
+            onClick={onFixUsageRights}
             className="mt-3 min-h-11 cursor-pointer text-sm underline underline-offset-4"
           >
             Set the usage rights
@@ -55,13 +43,13 @@ export function QuoteView({ record, settings, onBack }: Props) {
       ) : null}
 
       {!settings.yourName ? (
-        <p className="no-print mt-5 rounded-lg border border-line bg-white/70 px-4 py-3 text-sm text-slate">
+        <p className="no-print mt-4 rounded-lg border border-line bg-white/70 px-4 py-3 text-sm text-slate">
           This quote has no sender on it. Add your name in Settings and it will
           appear at the top.
         </p>
       ) : null}
 
-      <article className="print-sheet mt-6 rounded-lg border border-line bg-white px-6 py-8 sm:px-10 sm:py-12">
+      <article className="print-sheet mt-5 rounded-lg border border-line bg-white px-6 py-8 sm:px-10 sm:py-12">
         <header className="flex flex-wrap items-start justify-between gap-6">
           <div>
             <h1 className="font-display text-2xl font-semibold tracking-tight">

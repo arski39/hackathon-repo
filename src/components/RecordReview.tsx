@@ -119,7 +119,7 @@ export function RecordReview({
             onClick={onSeeQuote}
             className="min-h-11 cursor-pointer rounded-md bg-ink px-5 py-2.5 font-medium text-paper transition-opacity duration-150 hover:opacity-90"
           >
-            See the quote
+            Make something to send
           </button>
         </div>
       </div>
