@@ -7,7 +7,6 @@ import { ApiError } from './lib/anthropic'
 import { parseThread } from './lib/parseThread'
 import { runExtraction } from './lib/runExtraction'
 import { useLocalStorage } from './lib/useLocalStorage'
-import { VAT_RATE_PERCENT } from './config'
 import type { ProjectRecord } from './types'
 
 // No router: GitHub Pages 404s on client-side routes, so views switch on state.
@@ -20,7 +19,6 @@ type Failure = { message: string; hint?: string; raw?: string }
 const DEFAULT_SETTINGS: Settings = {
   demoMode: true,
   apiKey: '',
-  vatRatePercent: VAT_RATE_PERCENT,
   yourName: '',
   yourEmail: '',
   businessId: '',
@@ -61,7 +59,6 @@ export default function App() {
       const outcome = await runExtraction(messages, {
         demoMode: settings.demoMode,
         apiKey: settings.apiKey.trim(),
-        vatRatePercent: settings.vatRatePercent,
       })
       if (outcome.kind === 'ok') {
         setRecord(outcome.record)

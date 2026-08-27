@@ -1,4 +1,4 @@
-import { DEFAULT_NET_DAYS, VAT_RATE_PERCENT } from '../config'
+import { DEFAULT_NET_DAYS } from '../config'
 import { newId } from './id'
 import type { ProjectRecord, RecordFieldKey, RecordFieldSources, Deliverable, Message, Provenance } from '../types'
 
@@ -78,7 +78,7 @@ function checkProvenance(
  * warning and a sensible default, because a record the user can edit beats a
  * blank screen.
  */
-export function validateRecord(raw: string, messages: Message[], vatRatePercent = VAT_RATE_PERCENT): ValidationResult {
+export function validateRecord(raw: string, messages: Message[]): ValidationResult {
   const errors: string[] = []
   const warnings: string[] = []
 
@@ -179,7 +179,6 @@ export function validateRecord(raw: string, messages: Message[], vatRatePercent 
       netDays: netDays !== null && netDays > 0 ? netDays : DEFAULT_NET_DAYS,
     },
     currency: 'EUR',
-    vatRatePercent,
     notes: asText(parsed.notes) ?? '',
     sourceThread: messages,
     fieldSources,

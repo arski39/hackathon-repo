@@ -144,22 +144,6 @@ export function QuoteView({ record, settings, onBack }: Props) {
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={3} className="pt-3 text-right text-slate">
-                  Subtotal
-                </td>
-                <td className="pt-3 pl-4 text-right font-mono tabular-nums">
-                  {formatEuros(totals.subtotal)}
-                </td>
-              </tr>
-              <tr>
-                <td colSpan={3} className="pt-1.5 text-right text-slate">
-                  VAT {String(record.vatRatePercent).replace('.', ',')}%
-                </td>
-                <td className="pt-1.5 pl-4 text-right font-mono tabular-nums">
-                  {formatEuros(totals.vat)}
-                </td>
-              </tr>
-              <tr>
                 <td
                   colSpan={3}
                   className="border-t border-line pt-3 text-right font-medium"
@@ -250,9 +234,8 @@ export function QuoteView({ record, settings, onBack }: Props) {
         </dl>
 
         <p className="mt-10 border-t border-line pt-4 text-sm text-slate">
-          VAT is shown at {String(record.vatRatePercent).replace('.', ',')}% and is
-          Backpay&rsquo;s estimate, not tax advice &mdash; check it against your
-          own registration.
+          Amounts are as agreed. Backpay does not calculate VAT &mdash; your
+          invoicing service adds it if it applies to you.
         </p>
       </article>
     </div>

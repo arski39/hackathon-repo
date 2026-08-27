@@ -1,14 +1,10 @@
 // Single source of truth for the assumptions the user can check and change.
 // Never hardcode any of these in a component.
 
-/** Finland's general VAT rate. Editable in settings; shown as a set-aside
- *  estimate, never as tax advice. */
-export const VAT_RATE_PERCENT = 25.5
-
 /** Invoice due date default: net 14 from issue date. */
 export const DEFAULT_NET_DAYS = 14
 
-/** No multi-currency yet — that's a stretch goal, not Phase 0. */
+/** One currency. Multi-currency is not on the roadmap. */
 export const DEFAULT_CURRENCY = 'EUR' as const
 
 /** Locale used for money and date formatting. */

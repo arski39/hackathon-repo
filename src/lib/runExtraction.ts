@@ -31,7 +31,7 @@ function sleep(ms: number, signal?: AbortSignal) {
  */
 export async function runExtraction(
   messages: Message[],
-  options: { demoMode: boolean; apiKey: string; vatRatePercent: number },
+  options: { demoMode: boolean; apiKey: string },
   signal?: AbortSignal,
 ): Promise<ExtractionOutcome> {
   const today = new Date().toISOString().slice(0, 10)
@@ -43,14 +43,14 @@ export async function runExtraction(
   if (options.demoMode) {
     await sleep(DEMO_DELAY_MS, signal)
     return finish(
-      validateRecord(DEMO_EXTRACTION, messages, options.vatRatePercent),
+      validateRecord(DEMO_EXTRACTION, messages),
       DEMO_EXTRACTION,
     )
   }
 
   const prompt = extractRecordPrompt(messages, today)
   const first = await complete(options.apiKey, prompt, signal)
-  const firstResult = validateRecord(first, messages, options.vatRatePercent)
+  const firstResult = validateRecord(first, messages)
   if (firstResult.ok) return finish(firstResult, first)
 
   const second = await complete(
@@ -58,5 +58,5 @@ export async function runExtraction(
     prompt + retrySuffix(firstResult.errors, first),
     signal,
   )
-  return finish(validateRecord(second, messages, options.vatRatePercent), second)
+  return finish(validateRecord(second, messages), second)
 }

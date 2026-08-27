@@ -1,7 +1,7 @@
 import type { Message } from '../types'
 
 /** The shape we ask the model for. Deliberately not the ProjectRecord type: ids,
- *  status, currency, VAT and the thread itself are ours to fill in, and
+ *  status, currency and the thread itself are ours to fill in, and
  *  money is named `unitPriceCents` so there is no chance of a euros/cents
  *  mix-up in the model's head. */
 export const EXTRACTION_SCHEMA = `{

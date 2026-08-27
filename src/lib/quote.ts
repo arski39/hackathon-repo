@@ -1,4 +1,3 @@
-import { vatOf } from './money'
 import { QUOTE_VALID_DAYS } from '../config'
 import type { ProjectRecord } from '../types'
 
@@ -12,10 +11,8 @@ export type QuoteLine = {
 
 export type QuoteTotals = {
   lines: QuoteLine[]
-  subtotal: number
-  vat: number
   total: number
-  /** Of the gross total, because that is the number that actually gets paid. */
+  /** Of the total, because that is the number that actually gets paid. */
   depositAmount: number
   balanceAmount: number
 }
@@ -31,17 +28,14 @@ export function quoteTotals(record: ProjectRecord): QuoteTotals {
     lineTotal: d.quantity * d.unitPrice,
   }))
 
-  const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0)
-  const vat = vatOf(subtotal, record.vatRatePercent)
-  const total = subtotal + vat
+  // No VAT anywhere in Backpay (CLAUDE.md §5) — the total is the agreed sum.
+  const total = lines.reduce((sum, line) => sum + line.lineTotal, 0)
   const depositAmount = Math.round(
     (total * record.paymentTerms.depositPercent) / 100,
   )
 
   return {
     lines,
-    subtotal,
-    vat,
     total,
     depositAmount,
     balanceAmount: total - depositAmount,

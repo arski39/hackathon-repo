@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react'
 export type Settings = {
   demoMode: boolean
   apiKey: string
-  vatRatePercent: number
   /** Whose name is at the top of the quote. A quote with no sender is not
    *  something anyone would actually send. */
   yourName: string
@@ -169,38 +168,6 @@ export function SettingsPanel({ settings, onChange, onClose }: Props) {
                 Forget this key
               </button>
             ) : null}
-          </section>
-
-          <section>
-            <label htmlFor="vatRate" className="font-medium">
-              VAT rate
-            </label>
-            <p id="vatRate-hint" className="mt-1 text-sm text-slate">
-              Finland&rsquo;s general rate is 25,5%. Backpay uses this to
-              estimate what to set aside. It is an estimate to help you park
-              money, not tax advice.
-            </p>
-            <div className="mt-2 flex items-center gap-1.5">
-              <input
-                id="vatRate"
-                type="number"
-                min={0}
-                max={100}
-                step={0.5}
-                aria-describedby="vatRate-hint"
-                value={settings.vatRatePercent}
-                onChange={(e) =>
-                  patch({
-                    vatRatePercent: Math.min(
-                      100,
-                      Math.max(0, Number(e.target.value) || 0),
-                    ),
-                  })
-                }
-                className="w-24 rounded-md border border-line bg-white px-2.5 py-1.5 font-mono tabular-nums focus:border-slate/50"
-              />
-              <span className="text-slate">%</span>
-            </div>
           </section>
         </div>
       </div>

@@ -2,7 +2,7 @@ import { parseThread } from '../src/lib/parseThread'
 import { validateRecord } from '../src/lib/validateRecord'
 import { HERO_THREAD } from '../src/fixtures/heroThread'
 import { DEMO_EXTRACTION } from '../src/fixtures/demoExtraction'
-import { formatEuros, centsFromEuros, vatOf } from '../src/lib/money'
+import { formatEuros, centsFromEuros } from '../src/lib/money'
 import { quoteTotals, addDays, quoteValidUntil, formatDate } from '../src/lib/quote'
 
 let failed = 0
@@ -40,7 +40,6 @@ check('deadline has a source', !!result.record.fieldSources?.deadline)
 check('project has a source', !!result.record.fieldSources?.projectName)
 check('clientName has NO source (came from the header)', !result.record.fieldSources?.clientName)
 check('netDays defaulted to 14', result.record.paymentTerms.netDays === 14)
-check('vat rate carried through', result.record.vatRatePercent === 25.5)
 
 // Every surviving quote must really be in the thread it points at.
 const all = [
@@ -71,23 +70,23 @@ check('...and the user is told', invented.ok && invented.warnings.length === 1, 
 
 // -- Quote totals ----------------------------------------------------------
 const q = quoteTotals(result.record)
-check('subtotal matches the stated budget', q.subtotal === 200000, formatEuros(q.subtotal))
-check('VAT at 25,5% of 2000', q.vat === 51000, formatEuros(q.vat))
-check('total is subtotal + VAT', q.total === q.subtotal + q.vat && q.total === 251000, formatEuros(q.total))
+check('total matches the stated budget exactly', q.total === 200000, formatEuros(q.total))
+check('no VAT is added to the total', q.total === q.lines.reduce((s, l) => s + l.lineTotal, 0))
 check('no deposit stated, so deposit is 0', q.depositAmount === 0)
 check('balance is the whole total', q.balanceAmount === q.total)
 check('every total is an integer number of cents',
-  [q.subtotal, q.vat, q.total, q.depositAmount, q.balanceAmount].every(Number.isInteger))
+  [q.total, q.depositAmount, q.balanceAmount].every(Number.isInteger))
 
 const withDeposit = quoteTotals({ ...result.record, paymentTerms: { depositPercent: 40, netDays: 14 } })
-check('40% deposit of the gross total', withDeposit.depositAmount === 100400, formatEuros(withDeposit.depositAmount))
+check('40% deposit of the total', withDeposit.depositAmount === 80000, formatEuros(withDeposit.depositAmount))
 check('deposit + balance === total', withDeposit.depositAmount + withDeposit.balanceAmount === withDeposit.total)
 
 // Rounding is where cents quietly go missing.
-check('VAT rounds, never truncates', vatOf(333, 25.5) === 85, String(vatOf(333, 25.5)))
-check('VAT of 1 cent', vatOf(1, 25.5) === 0, String(vatOf(1, 25.5)))
+const thirdDown = quoteTotals({ ...result.record, deliverables: [{ id: 'x', description: 'odd', quantity: 1, unitPrice: 33333 }], paymentTerms: { depositPercent: 33, netDays: 14 } })
+check('deposit rounds to a whole cent', Number.isInteger(thirdDown.depositAmount) && thirdDown.depositAmount === 11000, String(thirdDown.depositAmount))
+check('deposit + balance loses nothing', thirdDown.depositAmount + thirdDown.balanceAmount === thirdDown.total)
 const odd = quoteTotals({ ...result.record, deliverables: [{ id: 'x', description: 'odd', quantity: 7, unitPrice: 3333 }] })
-check('odd line still totals exactly', odd.subtotal === 23331 && Number.isInteger(odd.vat), String(odd.subtotal))
+check('odd line still totals exactly', odd.total === 23331, String(odd.total))
 
 // -- Dates -----------------------------------------------------------------
 check('addDays crosses a month boundary', addDays('2026-08-27', 30) === '2026-09-26', addDays('2026-08-27', 30))

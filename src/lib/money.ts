@@ -31,8 +31,3 @@ export function centsFromEuros(input: string): number | null {
   const value = Number(normalised)
   return Number.isFinite(value) ? Math.round(value * 100) : null
 }
-
-/** VAT on a net amount, in cents. */
-export function vatOf(netCents: number, ratePercent: number): number {
-  return Math.round((netCents * ratePercent) / 100)
-}

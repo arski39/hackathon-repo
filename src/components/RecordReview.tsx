@@ -291,7 +291,7 @@ export function RecordReview({
                   Add a line
                 </button>
                 <p className="font-mono tabular-nums">
-                  <span className="mr-3 font-sans text-sm text-slate">Subtotal</span>
+                  <span className="mr-3 font-sans text-sm text-slate">Total</span>
                   {formatEuros(subtotal)}
                 </p>
               </div>

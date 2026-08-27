@@ -49,7 +49,6 @@ export type ProjectRecord = {
     netDays: number            // 14 is the Finnish default
   }
   currency: 'EUR'
-  vatRatePercent: number
   notes: string
   sourceThread: Message[]
   fieldSources?: RecordFieldSources
