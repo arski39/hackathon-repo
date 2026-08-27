@@ -1,7 +1,7 @@
 /** The canned extraction for HERO_THREAD, served by Demo Mode.
  *
  *  Every "quote" below is a verbatim substring of the parsed message body —
- *  validateDeal drops any that isn't, so if you edit HERO_THREAD you must
+ *  validateRecord drops any that isn't, so if you edit HERO_THREAD you must
  *  edit these too or the provenance lines silently disappear.
  *
  *  Note what it deliberately does NOT do: usageRights stays null because the

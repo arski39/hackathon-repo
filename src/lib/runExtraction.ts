@@ -1,11 +1,11 @@
 import { complete } from './anthropic'
-import { validateDeal, type ValidationResult } from './validateDeal'
-import { extractDealPrompt, retrySuffix } from '../prompts/extractDeal'
+import { validateRecord, type ValidationResult } from './validateRecord'
+import { extractRecordPrompt, retrySuffix } from '../prompts/extractRecord'
 import { DEMO_EXTRACTION } from '../fixtures/demoExtraction'
-import type { Deal, Message } from '../types'
+import type { ProjectRecord, Message } from '../types'
 
 export type ExtractionOutcome =
-  | { kind: 'ok'; deal: Deal; warnings: string[] }
+  | { kind: 'ok'; record: ProjectRecord; warnings: string[] }
   | { kind: 'invalid'; errors: string[]; raw: string }
 
 /** Demo Mode: no network, no key, but not instant either — an answer that
@@ -23,11 +23,11 @@ function sleep(ms: number, signal?: AbortSignal) {
 }
 
 /**
- * Thread in, Deal out.
+ * Thread in, record out.
  *
  * Validation failure is expected, not exceptional: one retry with the errors
  * fed back, and if that fails too the raw output goes to the user rather than
- * being replaced with a plausible-looking fake (section 11).
+ * being replaced with a plausible-looking fake (section 12).
  */
 export async function runExtraction(
   messages: Message[],
@@ -37,20 +37,20 @@ export async function runExtraction(
   const today = new Date().toISOString().slice(0, 10)
   const finish = (result: ValidationResult, raw: string): ExtractionOutcome =>
     result.ok
-      ? { kind: 'ok', deal: result.deal, warnings: result.warnings }
+      ? { kind: 'ok', record: result.record, warnings: result.warnings }
       : { kind: 'invalid', errors: result.errors, raw }
 
   if (options.demoMode) {
     await sleep(DEMO_DELAY_MS, signal)
     return finish(
-      validateDeal(DEMO_EXTRACTION, messages, options.vatRatePercent),
+      validateRecord(DEMO_EXTRACTION, messages, options.vatRatePercent),
       DEMO_EXTRACTION,
     )
   }
 
-  const prompt = extractDealPrompt(messages, today)
+  const prompt = extractRecordPrompt(messages, today)
   const first = await complete(options.apiKey, prompt, signal)
-  const firstResult = validateDeal(first, messages, options.vatRatePercent)
+  const firstResult = validateRecord(first, messages, options.vatRatePercent)
   if (firstResult.ok) return finish(firstResult, first)
 
   const second = await complete(
@@ -58,5 +58,5 @@ export async function runExtraction(
     prompt + retrySuffix(firstResult.errors, first),
     signal,
   )
-  return finish(validateDeal(second, messages, options.vatRatePercent), second)
+  return finish(validateRecord(second, messages, options.vatRatePercent), second)
 }

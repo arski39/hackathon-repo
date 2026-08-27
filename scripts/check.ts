@@ -1,5 +1,5 @@
 import { parseThread } from '../src/lib/parseThread'
-import { validateDeal } from '../src/lib/validateDeal'
+import { validateRecord } from '../src/lib/validateRecord'
 import { HERO_THREAD } from '../src/fixtures/heroThread'
 import { DEMO_EXTRACTION } from '../src/fixtures/demoExtraction'
 import { formatEuros, centsFromEuros, vatOf } from '../src/lib/money'
@@ -17,16 +17,16 @@ check('first message is the client', messages[0].from === 'client' && messages[0
 check('second message is the creator', messages[1].from === 'creator')
 check('header line stripped from body', !messages[0].body.includes('From:'))
 
-const result = validateDeal(DEMO_EXTRACTION, messages, 25.5)
+const result = validateRecord(DEMO_EXTRACTION, messages, 25.5)
 if (!result.ok) {
   console.log('FAIL  demo extraction is valid —', result.errors.join('; '))
   process.exit(1)
 }
 check('demo extraction validates', true)
 check('no provenance was dropped', result.warnings.length === 0, result.warnings.join(' | '))
-check('two deliverables', result.deal.deliverables.length === 2)
+check('two deliverables', result.record.deliverables.length === 2)
 
-const [reels, stills] = result.deal.deliverables
+const [reels, stills] = result.record.deliverables
 check('reels line has a source', !!reels.source)
 check('reels PRICE has its own source', reels.priceSource?.quote === 'budget-ish 2k', reels.priceSource?.quote ?? 'none')
 check('reels price is 2000 EUR in cents', reels.unitPrice === 200000, String(reels.unitPrice))
@@ -34,18 +34,18 @@ check('reels are one bundled line, not 3 x 2000', reels.quantity === 1)
 check('stills line has a source', !!stills.source)
 check('stills price left at 0, unsourced', stills.unitPrice === 0 && !stills.priceSource)
 
-check('usageRights stayed null', result.deal.usageRights === null)
-check('deadline resolved to ISO', result.deal.deadline === '2026-09-12')
-check('deadline has a source', !!result.deal.fieldSources?.deadline)
-check('project has a source', !!result.deal.fieldSources?.projectName)
-check('clientName has NO source (came from the header)', !result.deal.fieldSources?.clientName)
-check('netDays defaulted to 14', result.deal.paymentTerms.netDays === 14)
-check('vat rate carried through', result.deal.vatRatePercent === 25.5)
+check('usageRights stayed null', result.record.usageRights === null)
+check('deadline resolved to ISO', result.record.deadline === '2026-09-12')
+check('deadline has a source', !!result.record.fieldSources?.deadline)
+check('project has a source', !!result.record.fieldSources?.projectName)
+check('clientName has NO source (came from the header)', !result.record.fieldSources?.clientName)
+check('netDays defaulted to 14', result.record.paymentTerms.netDays === 14)
+check('vat rate carried through', result.record.vatRatePercent === 25.5)
 
 // Every surviving quote must really be in the thread it points at.
 const all = [
-  ...result.deal.deliverables.flatMap((d) => [d.source, d.priceSource]),
-  ...Object.values(result.deal.fieldSources ?? {}),
+  ...result.record.deliverables.flatMap((d) => [d.source, d.priceSource]),
+  ...Object.values(result.record.fieldSources ?? {}),
 ].filter(Boolean)
 check(
   `all ${all.length} quotes are verbatim substrings`,
@@ -59,18 +59,18 @@ check('parses "€2000"', centsFromEuros('€2000') === 200000, String(centsFrom
 check('rejects junk', centsFromEuros('abc') === null)
 
 // Bad model output must degrade, never crash.
-check('empty deliverables rejected', validateDeal('{"deliverables":[]}', messages).ok === false)
-check('non-JSON rejected', validateDeal('sorry, here you go!', messages).ok === false)
-check('fenced JSON accepted', validateDeal('```json\n' + DEMO_EXTRACTION + '\n```', messages).ok === true)
-const invented = validateDeal(
+check('empty deliverables rejected', validateRecord('{"deliverables":[]}', messages).ok === false)
+check('non-JSON rejected', validateRecord('sorry, here you go!', messages).ok === false)
+check('fenced JSON accepted', validateRecord('```json\n' + DEMO_EXTRACTION + '\n```', messages).ok === true)
+const invented = validateRecord(
   JSON.stringify({ deliverables: [{ description: 'X', quantity: 1, unitPriceCents: 500, source: { quote: 'I never said this', messageId: 'msg_1' } }] }),
   messages,
 )
-check('invented quote is dropped, not shown', invented.ok && !invented.deal.deliverables[0].source)
+check('invented quote is dropped, not shown', invented.ok && !invented.record.deliverables[0].source)
 check('...and the user is told', invented.ok && invented.warnings.length === 1, invented.ok ? invented.warnings.join('') : '')
 
 // -- Quote totals ----------------------------------------------------------
-const q = quoteTotals(result.deal)
+const q = quoteTotals(result.record)
 check('subtotal matches the stated budget', q.subtotal === 200000, formatEuros(q.subtotal))
 check('VAT at 25,5% of 2000', q.vat === 51000, formatEuros(q.vat))
 check('total is subtotal + VAT', q.total === q.subtotal + q.vat && q.total === 251000, formatEuros(q.total))
@@ -79,14 +79,14 @@ check('balance is the whole total', q.balanceAmount === q.total)
 check('every total is an integer number of cents',
   [q.subtotal, q.vat, q.total, q.depositAmount, q.balanceAmount].every(Number.isInteger))
 
-const withDeposit = quoteTotals({ ...result.deal, paymentTerms: { depositPercent: 40, netDays: 14 } })
+const withDeposit = quoteTotals({ ...result.record, paymentTerms: { depositPercent: 40, netDays: 14 } })
 check('40% deposit of the gross total', withDeposit.depositAmount === 100400, formatEuros(withDeposit.depositAmount))
 check('deposit + balance === total', withDeposit.depositAmount + withDeposit.balanceAmount === withDeposit.total)
 
 // Rounding is where cents quietly go missing.
 check('VAT rounds, never truncates', vatOf(333, 25.5) === 85, String(vatOf(333, 25.5)))
 check('VAT of 1 cent', vatOf(1, 25.5) === 0, String(vatOf(1, 25.5)))
-const odd = quoteTotals({ ...result.deal, deliverables: [{ id: 'x', description: 'odd', quantity: 7, unitPrice: 3333 }] })
+const odd = quoteTotals({ ...result.record, deliverables: [{ id: 'x', description: 'odd', quantity: 7, unitPrice: 3333 }] })
 check('odd line still totals exactly', odd.subtotal === 23331 && Number.isInteger(odd.vat), String(odd.subtotal))
 
 // -- Dates -----------------------------------------------------------------

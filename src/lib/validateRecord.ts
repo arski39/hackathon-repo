@@ -1,12 +1,12 @@
 import { DEFAULT_NET_DAYS, VAT_RATE_PERCENT } from '../config'
 import { newId } from './id'
-import type { Deal, DealFieldKey, DealFieldSources, Deliverable, Message, Provenance } from '../types'
+import type { ProjectRecord, RecordFieldKey, RecordFieldSources, Deliverable, Message, Provenance } from '../types'
 
 export type ValidationResult =
-  | { ok: true; deal: Deal; warnings: string[] }
+  | { ok: true; record: ProjectRecord; warnings: string[] }
   | { ok: false; errors: string[] }
 
-const FIELD_KEYS: DealFieldKey[] = [
+const FIELD_KEYS: RecordFieldKey[] = [
   'clientName',
   'projectName',
   'deadline',
@@ -73,12 +73,12 @@ function checkProvenance(
 }
 
 /**
- * Turn raw model output into a Deal, or into a list of reasons it can't be one.
+ * Turn raw model output into a record, or into a list of reasons it can't be one.
  * Errors are things we cannot proceed without; anything recoverable becomes a
- * warning and a sensible default, because a Deal the user can edit beats a
+ * warning and a sensible default, because a record the user can edit beats a
  * blank screen.
  */
-export function validateDeal(raw: string, messages: Message[], vatRatePercent = VAT_RATE_PERCENT): ValidationResult {
+export function validateRecord(raw: string, messages: Message[], vatRatePercent = VAT_RATE_PERCENT): ValidationResult {
   const errors: string[] = []
   const warnings: string[] = []
 
@@ -146,7 +146,7 @@ export function validateDeal(raw: string, messages: Message[], vatRatePercent = 
   }
 
   const rawSources = isRecord(parsed.fieldSources) ? parsed.fieldSources : {}
-  const fieldSources: DealFieldSources = {}
+  const fieldSources: RecordFieldSources = {}
   for (const key of FIELD_KEYS) {
     const found = checkProvenance(rawSources[key], messages, key, warnings)
     if (found) fieldSources[key] = found
@@ -161,8 +161,8 @@ export function validateDeal(raw: string, messages: Message[], vatRatePercent = 
     warnings.push(`Deadline "${deadline}" is not an ISO date; left it for you to set.`)
   }
 
-  const deal: Deal = {
-    id: newId('deal'),
+  const record: ProjectRecord = {
+    id: newId('record'),
     // Stays null until the user confirms which client this is; extraction can
     // read a name but has no way to know it's the same Nina as last time.
     clientId: null,
@@ -186,5 +186,5 @@ export function validateDeal(raw: string, messages: Message[], vatRatePercent = 
     createdAt: new Date().toISOString(),
   }
 
-  return { ok: true, deal, warnings }
+  return { ok: true, record, warnings }
 }

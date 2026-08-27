@@ -1,6 +1,6 @@
 import { vatOf } from './money'
 import { QUOTE_VALID_DAYS } from '../config'
-import type { Deal } from '../types'
+import type { ProjectRecord } from '../types'
 
 export type QuoteLine = {
   id: string
@@ -22,8 +22,8 @@ export type QuoteTotals = {
 
 /** All money stays in integer cents through every step. The only division is
  *  inside formatEuros, at the point of display. */
-export function quoteTotals(deal: Deal): QuoteTotals {
-  const lines = deal.deliverables.map((d) => ({
+export function quoteTotals(record: ProjectRecord): QuoteTotals {
+  const lines = record.deliverables.map((d) => ({
     id: d.id,
     description: d.description,
     quantity: d.quantity,
@@ -32,10 +32,10 @@ export function quoteTotals(deal: Deal): QuoteTotals {
   }))
 
   const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0)
-  const vat = vatOf(subtotal, deal.vatRatePercent)
+  const vat = vatOf(subtotal, record.vatRatePercent)
   const total = subtotal + vat
   const depositAmount = Math.round(
-    (total * deal.paymentTerms.depositPercent) / 100,
+    (total * record.paymentTerms.depositPercent) / 100,
   )
 
   return {

@@ -1,6 +1,6 @@
 import type { Message } from '../types'
 
-/** The shape we ask the model for. Deliberately not the Deal type: ids,
+/** The shape we ask the model for. Deliberately not the ProjectRecord type: ids,
  *  status, currency, VAT and the thread itself are ours to fill in, and
  *  money is named `unitPriceCents` so there is no chance of a euros/cents
  *  mix-up in the model's head. */
@@ -44,7 +44,7 @@ function renderThread(messages: Message[]): string {
     .join('\n\n')
 }
 
-export function extractDealPrompt(messages: Message[], today: string): string {
+export function extractRecordPrompt(messages: Message[], today: string): string {
   return `You are reading a real client conversation for a freelance creative and pulling out the commercial terms, so they can send a quote.
 
 Today's date is ${today}.

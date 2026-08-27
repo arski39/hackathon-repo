@@ -10,7 +10,7 @@ type Props = {
 }
 
 /** Render the body, wrapping the active quote in a <mark>. If the quote isn't
- *  in this body the text renders untouched — validateDeal already refuses
+ *  in this body the text renders untouched — validateRecord already refuses
  *  quotes it can't find, so this is belt and braces. */
 function renderBody(
   body: string,

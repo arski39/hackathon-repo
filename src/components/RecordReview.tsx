@@ -7,7 +7,7 @@ import { formatEuros } from '../lib/money'
 import { newId } from '../lib/id'
 import { useConnector } from '../lib/useConnector'
 import type { ActiveSource, ProvenanceApi } from '../lib/provenance'
-import type { Deal, Deliverable } from '../types'
+import type { ProjectRecord, Deliverable } from '../types'
 
 const input =
   'w-full rounded-md border border-line bg-white px-2.5 py-1.5 focus:border-slate/50'
@@ -16,15 +16,15 @@ const numeric =
   'rounded-md border border-line bg-white px-2.5 py-1.5 font-mono tabular-nums focus:border-slate/50'
 
 type Props = {
-  deal: Deal
+  record: ProjectRecord
   warnings: string[]
-  onChange: (deal: Deal) => void
+  onChange: (record: ProjectRecord) => void
   onStartOver: () => void
   onSeeQuote: () => void
 }
 
-export function DealReview({
-  deal,
+export function RecordReview({
+  record,
   warnings,
   onChange,
   onStartOver,
@@ -54,21 +54,21 @@ export function DealReview({
       setPinned((current) => (current?.key === source.key ? null : source)),
   }
 
-  const patch = (changes: Partial<Deal>) => onChange({ ...deal, ...changes })
+  const patch = (changes: Partial<ProjectRecord>) => onChange({ ...record, ...changes })
 
   const setDeliverable = (id: string, changes: Partial<Deliverable>) =>
     patch({
-      deliverables: deal.deliverables.map((d) =>
+      deliverables: record.deliverables.map((d) =>
         d.id === id ? { ...d, ...changes } : d,
       ),
     })
 
   const subtotal = useMemo(
-    () => deal.deliverables.reduce((sum, d) => sum + d.quantity * d.unitPrice, 0),
-    [deal.deliverables],
+    () => record.deliverables.reduce((sum, d) => sum + d.quantity * d.unitPrice, 0),
+    [record.deliverables],
   )
 
-  const sources = deal.fieldSources ?? {}
+  const sources = record.fieldSources ?? {}
 
   return (
     <div className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8">
@@ -141,7 +141,7 @@ export function DealReview({
         ) : null}
 
         <ThreadColumn
-          messages={deal.sourceThread}
+          messages={record.sourceThread}
           active={active}
           markRef={markRef}
           scrollRef={scrollRef}
@@ -164,7 +164,7 @@ export function DealReview({
                 <input
                   id="clientName"
                   className={input}
-                  value={deal.clientName}
+                  value={record.clientName}
                   onChange={(e) => patch({ clientName: e.target.value })}
                 />
               </Field>
@@ -178,7 +178,7 @@ export function DealReview({
                 <input
                   id="projectName"
                   className={input}
-                  value={deal.projectName}
+                  value={record.projectName}
                   onChange={(e) => patch({ projectName: e.target.value })}
                 />
               </Field>
@@ -189,7 +189,7 @@ export function DealReview({
                 Deliverables
               </legend>
               <ul className="space-y-4">
-                {deal.deliverables.map((item) => (
+                {record.deliverables.map((item) => (
                   <li key={item.id} className="space-y-2">
                     <div ref={(node) => registerRow(`${item.id}.line`, node)}>
                       <label htmlFor={`${item.id}-desc`} className="sr-only">
@@ -276,7 +276,7 @@ export function DealReview({
                   onClick={() =>
                     patch({
                       deliverables: [
-                        ...deal.deliverables,
+                        ...record.deliverables,
                         {
                           id: newId('dlv'),
                           description: '',
@@ -309,7 +309,7 @@ export function DealReview({
                   id="deadline"
                   type="date"
                   className={`w-full ${numeric}`}
-                  value={deal.deadline ?? ''}
+                  value={record.deadline ?? ''}
                   onChange={(e) => patch({ deadline: e.target.value || null })}
                 />
               </Field>
@@ -325,7 +325,7 @@ export function DealReview({
                   type="number"
                   min={0}
                   className={`w-full ${numeric}`}
-                  value={deal.revisionsIncluded}
+                  value={record.revisionsIncluded}
                   onChange={(e) =>
                     patch({
                       revisionsIncluded: Math.max(0, Number(e.target.value) || 0),
@@ -342,7 +342,7 @@ export function DealReview({
               provenance={provenance}
               registerRow={registerRow}
               hint={
-                deal.usageRights
+                record.usageRights
                   ? undefined
                   : 'Nobody mentioned rights. Where can they run this, for how long, and in which countries? Unstated usage rights are how a launch campaign quietly becomes three years of media.'
               }
@@ -352,9 +352,9 @@ export function DealReview({
                 className={input}
                 placeholder="e.g. social only, 6 months, Finland"
                 aria-describedby={
-                  deal.usageRights ? undefined : 'usageRights-hint'
+                  record.usageRights ? undefined : 'usageRights-hint'
                 }
-                value={deal.usageRights ?? ''}
+                value={record.usageRights ?? ''}
                 onChange={(e) => patch({ usageRights: e.target.value || null })}
               />
             </Field>
@@ -374,11 +374,11 @@ export function DealReview({
                     min={0}
                     max={100}
                     className={`w-24 ${numeric}`}
-                    value={deal.paymentTerms.depositPercent}
+                    value={record.paymentTerms.depositPercent}
                     onChange={(e) =>
                       patch({
                         paymentTerms: {
-                          ...deal.paymentTerms,
+                          ...record.paymentTerms,
                           depositPercent: Math.min(
                             100,
                             Math.max(0, Number(e.target.value) || 0),
@@ -404,11 +404,11 @@ export function DealReview({
                     type="number"
                     min={1}
                     className={`w-24 ${numeric}`}
-                    value={deal.paymentTerms.netDays}
+                    value={record.paymentTerms.netDays}
                     onChange={(e) =>
                       patch({
                         paymentTerms: {
-                          ...deal.paymentTerms,
+                          ...record.paymentTerms,
                           netDays: Math.max(1, Number(e.target.value) || 1),
                         },
                       })
@@ -430,7 +430,7 @@ export function DealReview({
                 id="notes"
                 rows={3}
                 className={`mt-1.5 ${input}`}
-                value={deal.notes}
+                value={record.notes}
                 onChange={(e) => patch({ notes: e.target.value })}
               />
             </div>

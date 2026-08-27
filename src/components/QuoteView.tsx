@@ -2,18 +2,18 @@ import { useMemo } from 'react'
 import { formatEuros } from '../lib/money'
 import { formatDate, quoteTotals, quoteValidUntil, today } from '../lib/quote'
 import type { Settings } from './SettingsPanel'
-import type { Deal } from '../types'
+import type { ProjectRecord } from '../types'
 
 type Props = {
-  deal: Deal
+  record: ProjectRecord
   settings: Settings
   onBack: () => void
 }
 
-export function QuoteView({ deal, settings, onBack }: Props) {
+export function QuoteView({ record, settings, onBack }: Props) {
   const issuedAt = useMemo(() => today(), [])
-  const totals = useMemo(() => quoteTotals(deal), [deal])
-  const hasDeposit = deal.paymentTerms.depositPercent > 0
+  const totals = useMemo(() => quoteTotals(record), [record])
+  const hasDeposit = record.paymentTerms.depositPercent > 0
 
   return (
     <div className="mx-auto w-full max-w-3xl px-5 py-8 sm:px-8">
@@ -34,7 +34,7 @@ export function QuoteView({ deal, settings, onBack }: Props) {
         </button>
       </div>
 
-      {!deal.usageRights ? (
+      {!record.usageRights ? (
         <div className="no-print mt-5 rounded-lg border border-overdue/40 bg-overdue/6 px-4 py-4">
           <p className="font-medium">This quote grants no usage rights.</p>
           <p className="mt-1 text-slate">
@@ -68,7 +68,7 @@ export function QuoteView({ deal, settings, onBack }: Props) {
               Quote
             </h1>
             <p className="mt-1 text-slate">
-              {deal.projectName || 'Untitled project'}
+              {record.projectName || 'Untitled project'}
             </p>
           </div>
           <dl className="text-sm">
@@ -104,7 +104,7 @@ export function QuoteView({ deal, settings, onBack }: Props) {
             <h2 className="text-xs font-medium tracking-wide text-slate uppercase">
               For
             </h2>
-            <p className="mt-1.5">{deal.clientName || '—'}</p>
+            <p className="mt-1.5">{record.clientName || '—'}</p>
           </div>
         </div>
 
@@ -153,7 +153,7 @@ export function QuoteView({ deal, settings, onBack }: Props) {
               </tr>
               <tr>
                 <td colSpan={3} className="pt-1.5 text-right text-slate">
-                  VAT {String(deal.vatRatePercent).replace('.', ',')}%
+                  VAT {String(record.vatRatePercent).replace('.', ',')}%
                 </td>
                 <td className="pt-1.5 pl-4 text-right font-mono tabular-nums">
                   {formatEuros(totals.vat)}
@@ -182,7 +182,7 @@ export function QuoteView({ deal, settings, onBack }: Props) {
             <dd>
               {hasDeposit ? (
                 <>
-                  {deal.paymentTerms.depositPercent}% deposit of{' '}
+                  {record.paymentTerms.depositPercent}% deposit of{' '}
                   <span className="font-mono tabular-nums">
                     {formatEuros(totals.depositAmount)}
                   </span>{' '}
@@ -197,7 +197,7 @@ export function QuoteView({ deal, settings, onBack }: Props) {
               )}{' '}
               Invoices are due{' '}
               <span className="font-mono tabular-nums">
-                net {deal.paymentTerms.netDays}
+                net {record.paymentTerms.netDays}
               </span>{' '}
               days from the invoice date.
             </dd>
@@ -208,7 +208,7 @@ export function QuoteView({ deal, settings, onBack }: Props) {
               Delivery
             </dt>
             <dd className="font-mono tabular-nums">
-              {formatDate(deal.deadline)}
+              {formatDate(record.deadline)}
             </dd>
           </div>
 
@@ -217,9 +217,9 @@ export function QuoteView({ deal, settings, onBack }: Props) {
               Revisions
             </dt>
             <dd>
-              {deal.revisionsIncluded === 0
+              {record.revisionsIncluded === 0
                 ? 'None included. Further rounds are quoted separately.'
-                : `${deal.revisionsIncluded} round${deal.revisionsIncluded === 1 ? '' : 's'} included. Further rounds are quoted separately.`}
+                : `${record.revisionsIncluded} round${record.revisionsIncluded === 1 ? '' : 's'} included. Further rounds are quoted separately.`}
             </dd>
           </div>
 
@@ -228,7 +228,7 @@ export function QuoteView({ deal, settings, onBack }: Props) {
               Usage rights
             </dt>
             <dd>
-              {deal.usageRights ?? (
+              {record.usageRights ?? (
                 // Said plainly on the document itself, not just nudged on
                 // screen. A gap the client can see is a gap they can answer.
                 <span>
@@ -239,18 +239,18 @@ export function QuoteView({ deal, settings, onBack }: Props) {
             </dd>
           </div>
 
-          {deal.notes ? (
+          {record.notes ? (
             <div className="sm:flex sm:gap-6">
               <dt className="text-xs font-medium tracking-wide text-slate uppercase sm:w-40 sm:shrink-0 sm:pt-0.5">
                 Notes
               </dt>
-              <dd className="whitespace-pre-wrap">{deal.notes}</dd>
+              <dd className="whitespace-pre-wrap">{record.notes}</dd>
             </div>
           ) : null}
         </dl>
 
         <p className="mt-10 border-t border-line pt-4 text-sm text-slate">
-          VAT is shown at {String(deal.vatRatePercent).replace('.', ',')}% and is
+          VAT is shown at {String(record.vatRatePercent).replace('.', ',')}% and is
           Backpay&rsquo;s estimate, not tax advice &mdash; check it against your
           own registration.
         </p>

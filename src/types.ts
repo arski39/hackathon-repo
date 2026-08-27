@@ -1,4 +1,4 @@
-// The data model — CLAUDE.md §4. Everything else derives from this file.
+// The data model — CLAUDE.md §5. Everything else derives from this file.
 
 export type Provenance = {
   quote: string        // exact substring from the source thread
@@ -12,15 +12,15 @@ export type Deliverable = {
   unitPrice: number    // in cents, always
   source?: Provenance
   /** Additive: the budget is usually stated in a different sentence from the
-   *  deliverable itself, and section 11 requires every number be traceable. */
+   *  deliverable itself, and section 12 requires every number be traceable. */
   priceSource?: Provenance
 }
 
-/** Section 6 requires provenance on *every* extracted field, but the section 4
+/** Section 7 requires provenance on *every* extracted field, but the section 5
  *  model only carries `source` on Deliverable. This is the additive companion:
- *  a quote for each scalar field the model filled in. Optional, so a Deal built
- *  by hand is still a valid Deal. */
-export type DealFieldKey =
+ *  a quote for each scalar field the model filled in. Optional, so a record built
+ *  by hand is still a valid record. */
+export type RecordFieldKey =
   | 'clientName'
   | 'projectName'
   | 'deadline'
@@ -29,13 +29,13 @@ export type DealFieldKey =
   | 'depositPercent'
   | 'netDays'
 
-export type DealFieldSources = Partial<Record<DealFieldKey, Provenance>>
+export type RecordFieldSources = Partial<Record<RecordFieldKey, Provenance>>
 
-export type Deal = {
+export type ProjectRecord = {
   id: string
   /** Resolved once the user confirms which client this is. Null until then —
    *  extraction produces a name long before it can know it's the same Nina as
-   *  last time. See section 12. */
+   *  last time. See section 13. */
   clientId: string | null
   clientName: string
   projectName: string
@@ -52,7 +52,7 @@ export type Deal = {
   vatRatePercent: number
   notes: string
   sourceThread: Message[]
-  fieldSources?: DealFieldSources
+  fieldSources?: RecordFieldSources
   createdAt: string
 }
 
@@ -63,7 +63,7 @@ export type Message = {
   body: string
   receivedAt: string
   /** Set when the message was imported rather than pasted, so it can be shown
-   *  as imported and never double-imported. Section 12.3. */
+   *  as imported and never double-imported. Section 13.3. */
   external?: ExternalRef
 }
 
@@ -75,7 +75,7 @@ export type ExternalRef = {
 
 export type Invoice = {
   id: string
-  dealId: string
+  recordId: string
   number: string               // "2026-001"
   kind: 'deposit' | 'balance' | 'change-order'
   lineItems: Deliverable[]
@@ -87,7 +87,7 @@ export type Invoice = {
 
 export type ScopeFlag = {
   id: string
-  dealId: string
+  recordId: string
   messageId: string
   whatWasAsked: string
   whyItsOutOfScope: string
@@ -95,12 +95,12 @@ export type ScopeFlag = {
   status: 'open' | 'billed' | 'dismissed'
 }
 
-// ─── Section 12: client memory and themes ──────────────────────────────────
-// Not built until Phase 6 ships. Defined now so that deals written to
+// ─── Section 13: client memory and themes ──────────────────────────────────
+// Not built until Phase 6 ships. Defined now so that records written to
 // localStorage before then already point at a client and never need migrating.
 
 /** The only part of a client that is stored. Everything interesting about them
- *  is derived from their deals and invoices — see ClientInsight. */
+ *  is derived from their records and invoices — see ClientInsight. */
 export type Client = {
   id: string
   name: string
@@ -114,7 +114,7 @@ export type Client = {
  *  statistics too: a claim the user cannot trace to specific rows is the same
  *  confident invention we refuse everywhere else. */
 export type InsightBasis = {
-  /** Invoice or deal ids the figure was computed from. */
+  /** Invoice or record ids the figure was computed from. */
   rowIds: string[]
   sampleSize: number
 }
@@ -125,7 +125,7 @@ export type LearnedNumber = {
 }
 
 /**
- * Computed on read from deals and invoices, never persisted — a stored summary
+ * Computed on read from records and invoices, never persisted — a stored summary
  * is a number that can quietly go stale and still look authoritative.
  *
  * Every field is nullable and must be null below three data points. Two
@@ -134,7 +134,7 @@ export type LearnedNumber = {
  */
 export type ClientInsight = {
   clientId: string
-  dealsCount: number
+  recordsCount: number
   medianDaysToPay: LearnedNumber | null
   invoicesPaidLate: LearnedNumber | null
   scopeFlagsRaised: LearnedNumber | null
@@ -143,7 +143,7 @@ export type ClientInsight = {
 }
 
 /**
- * A deliverable that recurs across deals — "15s vertical reel" seen nine times
+ * A deliverable that recurs across records — "15s vertical reel" seen nine times
  * at seven prices. This is a rate card built from the user's own history, which
  * is the only kind of benchmark we can show honestly.
  */

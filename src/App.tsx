@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { DealReview } from './components/DealReview'
+import { RecordReview } from './components/RecordReview'
 import { QuoteView } from './components/QuoteView'
 import { SettingsPanel, type Settings } from './components/SettingsPanel'
 import { ThreadInput } from './components/ThreadInput'
@@ -8,7 +8,7 @@ import { parseThread } from './lib/parseThread'
 import { runExtraction } from './lib/runExtraction'
 import { useLocalStorage } from './lib/useLocalStorage'
 import { VAT_RATE_PERCENT } from './config'
-import type { Deal } from './types'
+import type { ProjectRecord } from './types'
 
 // No router: GitHub Pages 404s on client-side routes, so views switch on state.
 type View = 'input' | 'review' | 'quote'
@@ -33,9 +33,9 @@ export default function App() {
   )
   const [thread, setThread] = useLocalStorage('backpay.draftThread', '')
   // Persisted, so a refresh mid-edit doesn't throw the work away.
-  const [deal, setDeal] = useLocalStorage<Deal | null>('backpay.deal', null)
+  const [record, setRecord] = useLocalStorage<ProjectRecord | null>('backpay.record', null)
 
-  const [view, setView] = useState<View>(deal ? 'review' : 'input')
+  const [view, setView] = useState<View>(record ? 'review' : 'input')
   const [warnings, setWarnings] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<Failure | null>(null)
@@ -64,12 +64,12 @@ export default function App() {
         vatRatePercent: settings.vatRatePercent,
       })
       if (outcome.kind === 'ok') {
-        setDeal(outcome.deal)
+        setRecord(outcome.record)
         setWarnings(outcome.warnings)
         setView('review')
       } else {
         // Twice now. Show what actually came back rather than inventing a
-        // plausible Deal the user would have no reason to distrust.
+        // plausible record the user would have no reason to distrust.
         setFailure({
           message: "That didn't come back in a shape we could use.",
           hint: outcome.errors.join(' '),
@@ -95,7 +95,7 @@ export default function App() {
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
           <button
             type="button"
-            onClick={() => setView(deal ? 'review' : 'input')}
+            onClick={() => setView(record ? 'review' : 'input')}
             className="cursor-pointer font-display text-lg font-semibold tracking-tight"
           >
             Backpay
@@ -118,7 +118,7 @@ export default function App() {
       </header>
 
       <main className="flex-1">
-        {view === 'input' || !deal ? (
+        {view === 'input' || !record ? (
           <ThreadInput
             value={thread}
             onChange={(next) => {
@@ -132,16 +132,16 @@ export default function App() {
             rawOutput={failure?.raw ?? null}
           />
         ) : view === 'review' ? (
-          <DealReview
-            deal={deal}
+          <RecordReview
+            record={record}
             warnings={warnings}
-            onChange={setDeal}
+            onChange={setRecord}
             onStartOver={() => setView('input')}
             onSeeQuote={() => setView('quote')}
           />
         ) : (
           <QuoteView
-            deal={deal}
+            record={record}
             settings={settings}
             onBack={() => setView('review')}
           />

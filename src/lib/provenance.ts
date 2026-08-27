@@ -1,7 +1,7 @@
 import type { Provenance } from '../types'
 
 /** A source being pointed at right now. `key` identifies which control on the
- *  Deal side is asking, so two fields quoting the same sentence stay distinct. */
+ *  ProjectRecord side is asking, so two fields quoting the same sentence stay distinct. */
 export type ActiveSource = Provenance & { key: string }
 
 export type ProvenanceApi = {
