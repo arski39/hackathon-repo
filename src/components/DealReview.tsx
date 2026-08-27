@@ -20,9 +20,16 @@ type Props = {
   warnings: string[]
   onChange: (deal: Deal) => void
   onStartOver: () => void
+  onSeeQuote: () => void
 }
 
-export function DealReview({ deal, warnings, onChange, onStartOver }: Props) {
+export function DealReview({
+  deal,
+  warnings,
+  onChange,
+  onStartOver,
+  onSeeQuote,
+}: Props) {
   const [pinned, setPinned] = useState<ActiveSource | null>(null)
   const [transient, setTransient] = useState<ActiveSource | null>(null)
   const active = pinned ?? transient
@@ -75,13 +82,22 @@ export function DealReview({ deal, warnings, onChange, onStartOver }: Props) {
             that&rsquo;s wrong &mdash; this is a first draft, not a verdict.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onStartOver}
-          className="min-h-11 cursor-pointer rounded-md border border-line px-4 py-2 text-sm hover:border-slate/40"
-        >
-          Paste a different thread
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={onStartOver}
+            className="min-h-11 cursor-pointer rounded-md border border-line px-4 py-2 text-sm hover:border-slate/40"
+          >
+            Paste a different thread
+          </button>
+          <button
+            type="button"
+            onClick={onSeeQuote}
+            className="min-h-11 cursor-pointer rounded-md bg-ink px-5 py-2.5 font-medium text-paper transition-opacity duration-150 hover:opacity-90"
+          >
+            See the quote
+          </button>
+        </div>
       </div>
 
       {warnings.length > 0 ? (

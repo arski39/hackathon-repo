@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { DealReview } from './components/DealReview'
+import { QuoteView } from './components/QuoteView'
 import { SettingsPanel, type Settings } from './components/SettingsPanel'
 import { ThreadInput } from './components/ThreadInput'
 import { ApiError } from './lib/anthropic'
@@ -10,9 +11,7 @@ import { VAT_RATE_PERCENT } from './config'
 import type { Deal } from './types'
 
 // No router: GitHub Pages 404s on client-side routes, so views switch on state.
-type View =
-  | { name: 'input' }
-  | { name: 'review'; deal: Deal; warnings: string[] }
+type View = 'input' | 'review' | 'quote'
 
 type Failure = { message: string; hint?: string; raw?: string }
 
@@ -22,6 +21,9 @@ const DEFAULT_SETTINGS: Settings = {
   demoMode: true,
   apiKey: '',
   vatRatePercent: VAT_RATE_PERCENT,
+  yourName: '',
+  yourEmail: '',
+  businessId: '',
 }
 
 export default function App() {
@@ -30,7 +32,11 @@ export default function App() {
     DEFAULT_SETTINGS,
   )
   const [thread, setThread] = useLocalStorage('backpay.draftThread', '')
-  const [view, setView] = useState<View>({ name: 'input' })
+  // Persisted, so a refresh mid-edit doesn't throw the work away.
+  const [deal, setDeal] = useLocalStorage<Deal | null>('backpay.deal', null)
+
+  const [view, setView] = useState<View>(deal ? 'review' : 'input')
+  const [warnings, setWarnings] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<Failure | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -58,7 +64,9 @@ export default function App() {
         vatRatePercent: settings.vatRatePercent,
       })
       if (outcome.kind === 'ok') {
-        setView({ name: 'review', deal: outcome.deal, warnings: outcome.warnings })
+        setDeal(outcome.deal)
+        setWarnings(outcome.warnings)
+        setView('review')
       } else {
         // Twice now. Show what actually came back rather than inventing a
         // plausible Deal the user would have no reason to distrust.
@@ -72,7 +80,8 @@ export default function App() {
       if ((e as Error).name === 'AbortError') return
       const apiError = e instanceof ApiError ? e : null
       setFailure({
-        message: apiError?.message ?? `Something went wrong: ${(e as Error).message}`,
+        message:
+          apiError?.message ?? `Something went wrong: ${(e as Error).message}`,
         hint: apiError?.hint,
       })
     } finally {
@@ -82,11 +91,11 @@ export default function App() {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="border-b border-line">
+      <header className="no-print border-b border-line">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
           <button
             type="button"
-            onClick={() => setView({ name: 'input' })}
+            onClick={() => setView(deal ? 'review' : 'input')}
             className="cursor-pointer font-display text-lg font-semibold tracking-tight"
           >
             Backpay
@@ -109,7 +118,7 @@ export default function App() {
       </header>
 
       <main className="flex-1">
-        {view.name === 'input' ? (
+        {view === 'input' || !deal ? (
           <ThreadInput
             value={thread}
             onChange={(next) => {
@@ -122,17 +131,24 @@ export default function App() {
             error={failure}
             rawOutput={failure?.raw ?? null}
           />
-        ) : (
+        ) : view === 'review' ? (
           <DealReview
-            deal={view.deal}
-            warnings={view.warnings}
-            onChange={(deal) => setView({ ...view, deal })}
-            onStartOver={() => setView({ name: 'input' })}
+            deal={deal}
+            warnings={warnings}
+            onChange={setDeal}
+            onStartOver={() => setView('input')}
+            onSeeQuote={() => setView('quote')}
+          />
+        ) : (
+          <QuoteView
+            deal={deal}
+            settings={settings}
+            onBack={() => setView('review')}
           />
         )}
       </main>
 
-      <footer className="border-t border-line">
+      <footer className="no-print border-t border-line">
         <div className="mx-auto w-full max-w-6xl px-5 py-5 text-sm text-slate sm:px-8">
           Nothing sends. Nothing charges. You click the real send button
           yourself.
