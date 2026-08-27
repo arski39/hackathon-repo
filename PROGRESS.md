@@ -1,5 +1,70 @@
 # Progress
 
+## Phase 3 — Outputs (2026-08-27)
+
+One screen, four things the record can become. All copyable, all printable, no
+PDF library.
+
+**What shipped**
+
+- **Quote** — the Phase 2 document, now chrome-free (`QuoteSheet`) so printing
+  it from anywhere produces the same page, plus a plain-text version to paste
+  into an email.
+- **Scope summary** — agreed at the start, added since and invoiced, added since
+  at no charge.
+- **Invoices** — real `Invoice` objects. Deposit, balance and change-order,
+  numbered `YYYY-NNN`, marked sent and paid by hand.
+- **"What we agreed"** — the reply for when a client misremembers, with the
+  sentence from the thread under each line.
+- 37 new checks; 146 in total.
+
+**Decisions**
+
+- *Invoice numbers are derived from the stored invoices, not from a counter.* A
+  counter is one more piece of state that can drift, and when it drifts the
+  numbers it hands out are wrong in a way nobody notices for months. This cannot
+  disagree with the invoices because it is computed from them. The trade is that
+  deleting an invoice would let a number be reused — nothing deletes one today,
+  and if deletion arrives this needs a high-water mark.
+- *Line items are snapshots.* An invoice states what was billed on the day it
+  was issued. Editing the record afterwards must not rewrite it, so the lines
+  are copies with their own ids. Checked.
+- *The balance invoice shows the deposit as a deduction.* Silently netting it
+  off produces a total the client cannot reconcile, and then they email asking,
+  which is the exact thing this product exists to prevent.
+- *Only a sent invoice can be overdue.* A draft sitting in the app past its
+  notional due date is not late; nobody has asked for the money yet. This is the
+  first place the loud color is used for the thing §7 named it after.
+- *The scope summary is client-facing.* Absorbed work is named but never priced,
+  and dismissed flags do not appear at all — the user decided those were not
+  differences, and listing them restarts an argument nobody is having.
+- *The reply's whole difficulty is tone.* The same facts read as a correction or
+  as an accusation depending on one clause. No "as agreed", no "as you can see",
+  no "to be clear", nothing laid out like evidence. It opens by offering to put
+  things in one place and closes by inviting a correction, because the user
+  still has to work with this person on Monday. A check fails the build if any
+  of those phrases reappear.
+- *Invoices are not cleared when the record is.* Numbering runs across every
+  record, and an orphaned invoice is a much smaller problem than a reused
+  number.
+
+**Still open**
+
+- Still not verified on a live Pages URL — the GitHub repo does not exist. It
+  now runs locally at `http://localhost:5173/backpay/`.
+- Print output still has not been eyeballed. The stylesheet is right by
+  construction: the outputs nav and every action row carry `no-print`, and each
+  document is a `.print-sheet`.
+- Invoices have no edit path once created. Deliberate for now — an invoice you
+  can quietly rewrite after sending is worse than one you cannot — but it means
+  a typo costs you a fresh number.
+- Nothing links a change-order invoice back to the flags it came from, so
+  billing the same flags twice is possible if you undo and redo.
+
+**Next:** Phase 4 — the chase, with Friendly as the default and the hero.
+
+---
+
 ## Phase 2 — Scope defense (2026-08-27)
 
 Paste a later message from the client; get back a factual list of where it
