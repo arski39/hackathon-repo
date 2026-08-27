@@ -2,6 +2,12 @@
 
 Build spec for Claude Code. Read this fully before writing any code. Follow the phases in order.
 
+**This file is the intent. `PROGRESS.md` is the state** — what has shipped, what
+was decided along the way, and what is currently broken. Read both before
+picking up work. Where this file and the code disagree, it is usually because a
+decision was made and recorded in `PROGRESS.md`; check there before "fixing" the
+code to match the spec.
+
 ---
 
 ## 1. What we're building
@@ -48,18 +54,22 @@ Alongside it, build **Demo Mode**: a toggle that serves canned fixture responses
 | Layer | Choice | Notes |
 |---|---|---|
 | Build | Vite + React + TypeScript | |
-| Styling | Tailwind CSS | |
+| Styling | Tailwind CSS **v4** | No `tailwind.config.js`. Tokens live in an `@theme` block in `src/index.css` — see §6. |
 | Routing | **None** | State-based view switching. GitHub Pages 404s on client-side routes. Do not add react-router. |
 | State | React state + a `useLocalStorage` hook | |
 | Persistence | `localStorage` | |
 | PDF | Print stylesheet + `window.print()` | Do not add a PDF library. A well-styled print view is faster and looks better. |
 | Deploy | GitHub Actions → GitHub Pages | |
+| Lint | oxlint | Ships with the Vite template. `npm run lint`. |
+| Checks | `npm run check` | Smoke test over parse → validate → totals. Runs esbuild via `npx`, adds no dependency. |
 
 ### Model
 
 Use `claude-sonnet-5` for extraction and drafting. Fall back to `claude-haiku-4-5-20251001` if latency in the demo is a problem.
 
 Before your first API call, verify current model IDs against `https://docs.claude.com/en/docs/about-claude/models`. If the ID above is wrong or deprecated, use the current one and note the change in the commit message. Do not guess.
+
+**Verified 2026-08-27:** both IDs above are current. Re-check if months pass.
 
 ---
 
@@ -79,6 +89,7 @@ type Deliverable = {
   quantity: number;
   unitPrice: number;    // in cents, always
   source?: Provenance;
+  priceSource?: Provenance;  // added: see "Additions" below
 };
 
 type Deal = {
@@ -98,6 +109,8 @@ type Deal = {
   vatRatePercent: number;
   notes: string;
   sourceThread: Message[];
+  fieldSources?: DealFieldSources;  // added: see "Additions" below
+  clientId: string | null;          // added: see "Additions" below
   createdAt: string;
 };
 
@@ -107,6 +120,7 @@ type Message = {
   sender: string;
   body: string;
   receivedAt: string;
+  external?: ExternalRef;  // added: set when imported rather than pasted (§12)
 };
 
 type Invoice = {
@@ -131,6 +145,22 @@ type ScopeFlag = {
   status: 'open' | 'billed' | 'dismissed';
 };
 ```
+
+### Additions to this model
+
+The block above is the original spec. Four optional fields have been added since,
+each for a stated reason. All are optional except `Deal.clientId`, so a
+hand-built object is still valid. The authoritative version is `src/types.ts`.
+
+| Field | Why |
+|---|---|
+| `Deal.fieldSources` | §6 requires provenance on *every* extracted field, but the model above only carries `source` on `Deliverable`. This holds a quote per scalar field. |
+| `Deliverable.priceSource` | A deliverable and its price are almost never in the same sentence — the hero thread says "3 reels…" in one paragraph and "budget-ish 2k" three paragraphs later. §1's demo moment is about tracing the *price* specifically, so it needs its own quote. |
+| `Deal.clientId` | Added ahead of §12 so deals already in `localStorage` never need migrating. Null until the user confirms which client it is. |
+| `Message.external` | Marks a message as imported rather than pasted, so it can be labelled and never double-imported (§12.3). |
+
+§12 adds `Client`, `ClientInsight`, `Theme`, `LearnedNumber`, `InsightBasis` and
+`ExternalRef`. None of those features are built yet.
 
 ### Money rules
 
@@ -206,7 +236,12 @@ The brief is *calm*. The user comes to this app already stressed about money. Th
 
 ### Tokens
 
-Put these in `tailwind.config.js` as named tokens and use the names everywhere. No raw hex in components.
+Define these as named tokens and use the names everywhere. **No raw hex in
+components.**
+
+They live in an `@theme` block in `src/index.css`, not `tailwind.config.js` —
+§3 specifies Tailwind v4, which replaced the JS config file. The rule is
+unchanged, only the location.
 
 ```
 paper     #F5F4F7   cool off-white — NOT cream, this is not a stationery app
@@ -258,6 +293,17 @@ For every extraction call:
 - Require a `source` object on every field that came from the thread, containing the **verbatim substring**. If Claude can't find a supporting substring, it must return `null` for that field rather than inventing one. This rule is what makes provenance lines honest.
 - Instruct it to leave `usageRights` and `deadline` as `null` when unstated rather than guessing. Missing information is a feature — we surface the gap to the user.
 - Set `max_tokens: 4096`.
+- **Never let a lump sum be multiplied by a quantity.** If one budget covers a
+  bundle ("3 reels … budget-ish 2k"), the line gets `quantity: 1` with the count
+  in the description, so `quantity × unitPrice` equals the stated budget exactly.
+  Do not divide the lump by the count either — that invents a per-unit precision
+  the client never gave, and rounds badly. This shipped as a bug once and would
+  have opened the demo by showing the AI tripling a price.
+- Ask for money as `unitPriceCents`, never `unitPrice`. Naming the unit in the
+  field is what stops a silent euros/cents error.
+- A quote the model returns is **not trusted until verified**. Check that it is
+  a real substring of the message it cites; drop it and tell the user if it is
+  not. Without that check the provenance lines are decoration.
 
 For the chase email:
 
@@ -274,11 +320,16 @@ For the chase email:
 
 ### Setup
 
+Already done. The repo root **is** `backpay/` — this file, `PROGRESS.md`, `src/`
+and `.github/` all sit at that level, so the workflow YAML below needs no
+`working-directory` override and the repo name matches `base: '/backpay/'`.
+
 ```bash
-npm create vite@latest backpay -- --template react-ts
-cd backpay
 npm install
-npm install -D tailwindcss @tailwindcss/vite
+npm run dev      # http://localhost:5173/backpay/
+npm run build    # tsc -b && vite build
+npm run lint
+npm run check    # parse → validate → totals
 ```
 
 ### `vite.config.ts`
