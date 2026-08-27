@@ -31,3 +31,19 @@ export function centsFromEuros(input: string): number | null {
   const value = Number(normalised)
   return Number.isFinite(value) ? Math.round(value * 100) : null
 }
+
+/**
+ * A price that may not have been decided yet — CLAUDE.md §6.
+ *
+ * `null` is not zero. Printing "0,00 €" where nobody has decided puts a number
+ * in the user's mouth, and on a document a client reads it agrees to free work
+ * on their behalf. This is the only place that distinction should need writing.
+ */
+export function formatPrice(cents: number | null, gap = 'price not set'): string {
+  return cents === null ? gap : formatEuros(cents)
+}
+
+/** The line total, or null when the line has no price yet. */
+export function lineTotalOf(quantity: number, unitPrice: number | null): number | null {
+  return unitPrice === null ? null : quantity * unitPrice
+}

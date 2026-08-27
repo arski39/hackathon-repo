@@ -6,10 +6,11 @@ import { SettingsPanel, type Settings } from './components/SettingsPanel'
 import { ThreadInput } from './components/ThreadInput'
 import { ApiError } from './lib/anthropic'
 import { blankRecord } from './lib/blankRecord'
+import { DEFAULT_CAPABILITIES } from './lib/capabilities'
 import { parseThread } from './lib/parseThread'
 import { runExtraction } from './lib/runExtraction'
 import { useLocalStorage } from './lib/useLocalStorage'
-import type { Invoice, ProjectRecord, ScopeFlag } from './types'
+import type { Capability, Invoice, PriceEntry, ProjectRecord, ScopeFlag } from './types'
 
 // No router: GitHub Pages 404s on client-side routes, so views switch on state.
 type View = 'input' | 'review' | 'outputs' | 'scope'
@@ -39,6 +40,13 @@ export default function App() {
   // Invoice numbers run across every record, so these are not cleared with
   // the record — a reused number is worse than an orphaned one.
   const [invoices, setInvoices] = useLocalStorage<Invoice[]>('backpay.invoices', [])
+  // The learning corpus (§5). Spans every record and is never cleared with one:
+  // a price the user decided last March is still what they decided.
+  const [priceLog, setPriceLog] = useLocalStorage<PriceEntry[]>('backpay.priceLog', [])
+  const [capabilities, setCapabilities] = useLocalStorage<Capability[]>(
+    'backpay.capabilities',
+    DEFAULT_CAPABILITIES,
+  )
 
   const [view, setView] = useState<View>(record ? 'review' : 'input')
   const [warnings, setWarnings] = useState<string[]>([])
@@ -152,6 +160,8 @@ export default function App() {
             onStartOver={() => setView('input')}
             onSeeQuote={() => setView('outputs')}
             onAddMessage={() => setView('scope')}
+            priceLog={priceLog}
+            onPriceLogChange={setPriceLog}
             openFlags={
               flags.filter((f) => f.recordId === record.id && f.status === 'open')
                 .length
@@ -188,7 +198,10 @@ export default function App() {
       {settingsOpen ? (
         <SettingsPanel
           settings={settings}
+          capabilities={capabilities}
+          evidenceCount={priceLog.length}
           onChange={setSettings}
+          onCapabilitiesChange={setCapabilities}
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}

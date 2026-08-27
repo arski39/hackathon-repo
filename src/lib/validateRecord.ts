@@ -49,6 +49,9 @@ function asText(v: unknown): string | null {
 
 /**
  * Turn raw model output into a record, or into a list of reasons it can't be one.
+ *
+ * Every money field comes out null. That is not a gap to be filled in later by
+ * something clever — it is the product working as specified (section 5).
  * Errors are things we cannot proceed without; anything recoverable becomes a
  * warning and a sensible default, because a record the user can edit beats a
  * blank screen.
@@ -91,16 +94,20 @@ export function validateRecord(raw: string, messages: Message[]): ValidationResu
         return []
       }
       const quantity = asInt(item.quantity)
-      const price = asInt(item.unitPriceCents)
-      if (price !== null && price < 0) {
-        warnings.push(`Deliverable "${description}" had a negative price; set to 0.`)
+      // Pricing is at OBSERVE (section 5): the price is not asked for and is
+      // not accepted. If a model volunteers one anyway — they will — it is
+      // dropped here rather than shown, and the user is told it happened.
+      if (item.unitPriceCents !== undefined && item.unitPriceCents !== null) {
+        warnings.push(
+          `Ignored a price for "${description}". Backpay doesn't price your work — that one's yours.`,
+        )
       }
       return [
         {
           id: newId('dlv'),
           description,
           quantity: quantity !== null && quantity > 0 ? quantity : 1,
-          unitPrice: price === null ? 0 : Math.max(0, price),
+          unitPrice: null,
           source: checkProvenance(item.source, messages, `"${description}"`, warnings),
           priceSource: checkProvenance(
             item.priceSource,

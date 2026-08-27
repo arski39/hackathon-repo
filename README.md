@@ -5,13 +5,56 @@ Backpay turns the conversation into a record of what was agreed, and the record
 into whatever you need to send.
 
 Paste the thread, or type it in if the whole thing was agreed on a call. You get
-back a structured record where every number points at the sentence it came from.
+back a structured record where everything points at the sentence it came from.
 From there it becomes a quote, a scope summary, invoice line items, a chase
 email, or a plain "here's what we agreed" reply for when a client misremembers.
 
 Invoicing is one output among several. It is not the point.
 
-**Live:** https://YOUR-USERNAME.github.io/backpay/
+**Live:** https://arski39.github.io/hackathon-repo/
+
+## It never sets your prices
+
+The price box comes back **empty**, with the client's own words next to it —
+*"budget-ish 2k"* — and you type the number.
+
+That is deliberate, and it is the main thing that makes this different from
+everything else in the category. Pricing your own work is the decision
+freelancers are worst served on and most anxious about. A tool that guesses at it
+is worth less than nothing, because a plausible wrong number anchors you before
+you have thought about it.
+
+So Backpay starts by watching. It never generates a monetary figure that isn't
+derived from your own past records, never quotes a market rate or an industry
+average, and leaves the field blank when it has nothing of yours to point at.
+Then it graduates, one capability at a time, and only when you say so:
+
+| Stage | What it does |
+|---|---|
+| **Observe** | Leaves the box empty. You enter the number. *(where everything starts)* |
+| **Recall** | Still empty, but your own past projects are listed beside it. |
+| **Propose** | Fills it in from your history and says which projects it used. |
+| **Draft** | Completes the artifact for you to check. |
+
+Promotion is granted by you in Settings, never automatically. If you keep
+overriding what it suggests, it demotes itself and tells you why. Pricing starts
+at Observe and never goes past Recall — it will show you what you charged, and it
+will not fill the box in for you.
+
+**When it shows you your history, it shows you the rows** — client, deliverable,
+what you charged, when. Never an average. A mean has no author and hides the
+thing that matters, which is that one of those projects was a favour and you know
+which one.
+
+## How the "learning" actually works
+
+There is **no training and no fine-tuning**, here or anywhere. Nothing about your
+data is ever used to improve a model.
+
+"Learning" means one thing: retrieving your own relevant past records and putting
+them in the prompt context at the moment of a decision. That's it. It's a lookup
+against a list in your browser. The mechanism being unglamorous is exactly why
+the privacy claim below is true.
 
 ## Nothing sends. Nothing charges.
 
@@ -20,8 +63,8 @@ no access to your email or bank. When something is ready, you copy it and send i
 yourself from your own client. That's deliberate and it is not going to change.
 
 Everything the model produces is a draft, never truth. Every field is editable,
-and every extracted value shows the exact sentence in the thread it came from, so
-you can check that nobody invented a price.
+and every extracted value shows the exact sentence in the thread it came from —
+which is evidence for your decision, not justification for the model's.
 
 ## Where your text goes
 
@@ -44,7 +87,7 @@ Requires Node 20+.
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173/backpay/
+npm run dev      # http://localhost:5173/hackathon-repo/
 npm run build    # type-check and produce dist/
 npm run lint
 npm run check    # parse -> validate -> totals -> redaction round trip
@@ -84,6 +127,9 @@ nobody measured is invention, which is the one thing this tool exists not to do.
 **No VAT.** Most Finnish freelancers invoice through a laskutuspalvelu that
 handles it automatically, so a VAT figure here would be noise at best and a
 second, disagreeing number at worst. Amounts are the amounts you agreed.
+
+**No rate benchmarks, market data, or "what others charge".** Not now, not later.
+The only prices this app will ever show you are ones you typed.
 
 Chase emails are drafts, not legal notices.
 

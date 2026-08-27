@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { formatEuros } from '../lib/money'
+import { formatEuros, formatPrice } from '../lib/money'
 import { formatDate, quoteTotals, quoteValidUntil, today } from '../lib/quote'
 import type { Settings } from './SettingsPanel'
 import type { ProjectRecord } from '../types'
@@ -122,10 +122,14 @@ export function QuoteSheet({ record, settings, onFixUsageRights }: Props) {
                     {line.quantity}
                   </td>
                   <td className="py-3 pl-4 text-right font-mono tabular-nums">
-                    {formatEuros(line.unitPrice)}
+                    {formatPrice(line.unitPrice, '—')}
                   </td>
                   <td className="py-3 pl-4 text-right font-mono tabular-nums">
-                    {formatEuros(line.lineTotal)}
+                    {line.lineTotal === null ? (
+                      <span className="font-sans text-sm text-slate">not priced</span>
+                    ) : (
+                      formatEuros(line.lineTotal)
+                    )}
                   </td>
                 </tr>
               ))}
@@ -140,6 +144,12 @@ export function QuoteSheet({ record, settings, onFixUsageRights }: Props) {
                 </td>
                 <td className="border-t border-line pt-3 pl-4 text-right font-mono text-lg tabular-nums">
                   {formatEuros(totals.total)}
+                  {totals.unpricedCount > 0 ? (
+                    <span className="block font-sans text-sm font-normal text-slate">
+                      {totals.unpricedCount} line{totals.unpricedCount === 1 ? '' : 's'} still to
+                      price, not included
+                    </span>
+                  ) : null}
                 </td>
               </tr>
             </tfoot>

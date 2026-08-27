@@ -1,4 +1,4 @@
-import { formatEuros } from './money'
+import { formatEuros, formatPrice } from './money'
 import { formatDate, quoteTotals } from './quote'
 import type { ProjectRecord } from '../types'
 
@@ -24,11 +24,7 @@ export function agreedSummary(record: ProjectRecord): string {
   for (const line of totals.lines) {
     const what = line.description.trim() || 'Untitled line'
     const count = line.quantity > 1 ? `${line.quantity} × ` : ''
-    // A zero here is almost always a price nobody has set yet, not free work.
-    // Printing "0,00 €" into something the client reads would quietly agree to
-    // that on the user's behalf.
-    const money = line.lineTotal > 0 ? formatEuros(line.lineTotal) : 'price not set'
-    lines.push(`- ${count}${what} — ${money}`)
+    lines.push(`- ${count}${what} — ${formatPrice(line.lineTotal)}`)
   }
   lines.push('')
 
@@ -47,6 +43,12 @@ export function agreedSummary(record: ProjectRecord): string {
   }
 
   lines.push(`Total: ${formatEuros(totals.total)}`)
+  // Never let a partial total pass for a finished one. At OBSERVE this is the
+  // normal state of a new record, not an error (section 6).
+  if (totals.unpricedCount > 0) {
+    const n = totals.unpricedCount
+    lines.push(`${n} line${n === 1 ? '' : 's'} still to price, not included above.`)
+  }
 
   const { depositPercent, netDays } = record.paymentTerms
   lines.push(

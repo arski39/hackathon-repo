@@ -1,4 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
+import {
+  CAPABILITY_LABEL,
+  canPromote,
+  demote,
+  promote,
+  STAGE_BLURB,
+  STAGE_LABEL,
+  stageIndex,
+} from '../lib/capabilities'
+import type { Capability } from '../types'
 
 export type Settings = {
   demoMode: boolean
@@ -15,11 +25,22 @@ export type Settings = {
 
 type Props = {
   settings: Settings
+  capabilities: Capability[]
+  /** How many prices the user has entered. Nothing is offered below the floor. */
+  evidenceCount: number
   onChange: (settings: Settings) => void
+  onCapabilitiesChange: (capabilities: Capability[]) => void
   onClose: () => void
 }
 
-export function SettingsPanel({ settings, onChange, onClose }: Props) {
+export function SettingsPanel({
+  settings,
+  capabilities,
+  evidenceCount,
+  onChange,
+  onCapabilitiesChange,
+  onClose,
+}: Props) {
   const panelRef = useRef<HTMLDivElement | null>(null)
   const [showKey, setShowKey] = useState(false)
 
@@ -34,6 +55,9 @@ export function SettingsPanel({ settings, onChange, onClose }: Props) {
 
   const patch = (changes: Partial<Settings>) =>
     onChange({ ...settings, ...changes })
+
+  const setCapability = (next: Capability) =>
+    onCapabilitiesChange(capabilities.map((c) => (c.name === next.name ? next : c)))
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -65,6 +89,70 @@ export function SettingsPanel({ settings, onChange, onClose }: Props) {
         </div>
 
         <div className="space-y-8 px-5 py-6">
+          <section>
+            <h3 className="font-medium">What Backpay is allowed to do</h3>
+            <p className="mt-1 text-sm text-slate">
+              It never sets a price. It starts by watching what you charge, and
+              you decide when it has seen enough to be useful. Nothing here moves
+              on its own.
+            </p>
+
+            <ul className="mt-4 space-y-4">
+              {capabilities.map((capability) => {
+                const eligible = canPromote(capability, evidenceCount)
+                const next = STAGE_LABEL[
+                  (['observe', 'recall', 'propose', 'draft'] as const)[
+                    stageIndex(capability.stage) + 1
+                  ] ?? 'draft'
+                ]
+                return (
+                  <li
+                    key={capability.name}
+                    className="rounded-lg border border-line bg-white px-3 py-3"
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <p className="font-medium">{CAPABILITY_LABEL[capability.name]}</p>
+                      <p className="text-xs tracking-wide text-slate uppercase">
+                        {STAGE_LABEL[capability.stage]}
+                      </p>
+                    </div>
+                    <p className="mt-1 text-sm text-slate">
+                      {STAGE_BLURB[capability.stage]}
+                    </p>
+
+                    <div className="mt-2.5 flex flex-wrap items-center gap-3">
+                      {eligible ? (
+                        <button
+                          type="button"
+                          onClick={() => setCapability(promote(capability))}
+                          className="min-h-11 cursor-pointer rounded-md border border-line px-3 py-1.5 text-sm hover:border-slate/40"
+                        >
+                          Let it {next.toLowerCase()}
+                        </button>
+                      ) : (
+                        <p className="text-sm text-slate/80">
+                          {capability.name === 'pricing' &&
+                          stageIndex(capability.stage) >= 1
+                            ? 'This is as far as pricing goes. It will not fill the box in for you.'
+                            : `Not yet — ${evidenceCount} price${evidenceCount === 1 ? '' : 's'} recorded so far.`}
+                        </p>
+                      )}
+                      {stageIndex(capability.stage) > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setCapability(demote(capability))}
+                          className="min-h-11 cursor-pointer text-sm text-slate underline underline-offset-4 hover:text-ink"
+                        >
+                          Put it back
+                        </button>
+                      ) : null}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+
           <section className="rounded-lg border border-line bg-white/70 px-4 py-4">
             <h3 className="font-medium">Where your text goes</h3>
             <p className="mt-1.5 text-sm text-slate">

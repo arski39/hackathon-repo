@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { CopyButton } from './CopyButton'
 import { QuoteSheet } from './QuoteSheet'
-import { formatEuros } from '../lib/money'
+import { formatEuros, formatPrice } from '../lib/money'
 import {
   balanceInvoice,
   changeOrderInvoice,
@@ -266,7 +266,7 @@ export function Outputs({
                             <td className="py-2 pr-4">{line.description}</td>
                             <td className="py-2 text-right font-mono tabular-nums">
                               {line.quantity > 1 ? `${line.quantity} × ` : ''}
-                              {formatEuros(line.unitPrice)}
+                              {formatPrice(line.unitPrice, 'not priced')}
                             </td>
                           </tr>
                         ))}

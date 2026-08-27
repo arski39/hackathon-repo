@@ -18,7 +18,7 @@ export function blankRecord(): ProjectRecord {
     clientName: '',
     projectName: '',
     status: 'draft',
-    deliverables: [{ id: newId('dlv'), description: '', quantity: 1, unitPrice: 0 }],
+    deliverables: [{ id: newId('dlv'), description: '', quantity: 1, unitPrice: null }],
     revisionsIncluded: 0,
     deadline: null,
     usageRights: null,

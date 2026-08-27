@@ -6,6 +6,8 @@ import { formatEuros, centsFromEuros } from '../src/lib/money'
 import { quoteTotals, addDays, quoteValidUntil, formatDate } from '../src/lib/quote'
 import { redactMessages, restoreRecord, restoreText } from '../src/lib/redact'
 import { blankRecord } from '../src/lib/blankRecord'
+import { logPrice, comparables } from '../src/lib/priceLog'
+import { DEFAULT_CAPABILITIES, canPromote, promote, recordOutcome, EVIDENCE_FLOOR } from '../src/lib/capabilities'
 import { agreedSummary } from '../src/lib/summary'
 import { parseFollowUp } from '../src/lib/followUp'
 import { validateScopeFlags } from '../src/lib/validateScopeFlags'
@@ -15,7 +17,7 @@ import { quoteText, scopeSummaryText, agreedReplyText, invoiceText } from '../sr
 import { restoreFlags, redactRecord } from '../src/lib/redact'
 import { DEMO_SCOPE_FLAGS } from '../src/fixtures/demoScopeFlags'
 import { SCOPE_CREEP_MESSAGE } from '../src/fixtures/heroThread'
-import type { ScopeFlag } from '../src/types'
+import type { PriceEntry, ProjectRecord, ScopeFlag } from '../src/types'
 import type { Message } from '../src/types'
 
 let failed = 0
@@ -48,10 +50,13 @@ check('two deliverables', result.record.deliverables.length === 2)
 const [reels, stills] = result.record.deliverables
 check('reels line has a source', !!reels.source)
 check('reels PRICE has its own source', reels.priceSource?.quote === 'budget-ish 2k', reels.priceSource?.quote ?? 'none')
-check('reels price is 2000 EUR in cents', reels.unitPrice === 200000, String(reels.unitPrice))
-check('reels are one bundled line, not 3 x 2000', reels.quantity === 1)
+// Pricing is at OBSERVE (CLAUDE.md §5). The evidence comes back; the number
+// does not, and it is blank rather than zero — those are different facts.
+check('the reels price comes back BLANK, not zero', reels.unitPrice === null, String(reels.unitPrice))
+check('reels are one bundled line, not 3 separate ones', reels.quantity === 1)
 check('stills line has a source', !!stills.source)
-check('stills price left at 0, unsourced', stills.unitPrice === 0 && !stills.priceSource)
+check('the stills price is blank too, and unsourced', stills.unitPrice === null && !stills.priceSource)
+check('no deliverable comes back with any price', result.record.deliverables.every((d) => d.unitPrice === null))
 
 check('usageRights stayed null', result.record.usageRights === null)
 check('deadline resolved to ISO', result.record.deadline === '2026-09-12')
@@ -85,26 +90,46 @@ const invented = validateRecord(
   messages,
 )
 check('invented quote is dropped, not shown', invented.ok && !invented.record.deliverables[0].source)
-check('...and the user is told', invented.ok && invented.warnings.length === 1, invented.ok ? invented.warnings.join('') : '')
+check('...and the user is told', invented.ok && invented.warnings.some((w) => w.includes('is not in the thread')))
+// The model will volunteer a price sooner or later. It is refused here, not
+// displayed with a caveat — a caveat still displays it.
+check('a volunteered price is refused', invented.ok && invented.record.deliverables[0].unitPrice === null)
+check('...and that is said out loud', invented.ok && invented.warnings.some((w) => w.includes("Backpay doesn't price your work")))
 
 // -- Quote totals ----------------------------------------------------------
-const q = quoteTotals(result.record)
-check('total matches the stated budget exactly', q.total === 200000, formatEuros(q.total))
-check('no VAT is added to the total', q.total === q.lines.reduce((s, l) => s + l.lineTotal, 0))
+// The record as it is after the user has priced the first line and left the
+// second blank — which is what a real half-finished record looks like.
+const priced: ProjectRecord = result.ok
+  ? {
+      ...result.record,
+      deliverables: result.record.deliverables.map((d, i) => ({
+        ...d,
+        unitPrice: i === 0 ? 200000 : null,
+      })),
+    }
+  : blankRecord()
+
+const q = quoteTotals(priced)
+check('the total is what the user typed', q.total === 200000, formatEuros(q.total))
+check('no VAT is added to the total', q.total === q.lines.reduce((s, l) => s + (l.lineTotal ?? 0), 0))
+check('an unpriced line is counted, not silently dropped', q.unpricedCount === 1, String(q.unpricedCount))
+check('...and is not treated as zero', q.lines[1].lineTotal === null)
+check('a fully unpriced record totals 0 with everything unpriced',
+  quoteTotals(blankRecord()).unpricedCount === 1)
 check('no deposit stated, so deposit is 0', q.depositAmount === 0)
 check('balance is the whole total', q.balanceAmount === q.total)
 check('every total is an integer number of cents',
   [q.total, q.depositAmount, q.balanceAmount].every(Number.isInteger))
 
-const withDeposit = quoteTotals({ ...result.record, paymentTerms: { depositPercent: 40, netDays: 14 } })
+const withDeposit = quoteTotals({ ...priced, paymentTerms: { depositPercent: 40, netDays: 14 } })
 check('40% deposit of the total', withDeposit.depositAmount === 80000, formatEuros(withDeposit.depositAmount))
 check('deposit + balance === total', withDeposit.depositAmount + withDeposit.balanceAmount === withDeposit.total)
 
 // Rounding is where cents quietly go missing.
-const thirdDown = quoteTotals({ ...result.record, deliverables: [{ id: 'x', description: 'odd', quantity: 1, unitPrice: 33333 }], paymentTerms: { depositPercent: 33, netDays: 14 } })
+const thirdDown = quoteTotals({ ...priced, deliverables: [{ id: 'x', description: 'odd', quantity: 1, unitPrice: 33333 }], paymentTerms: { depositPercent: 33, netDays: 14 } })
 check('deposit rounds to a whole cent', Number.isInteger(thirdDown.depositAmount) && thirdDown.depositAmount === 11000, String(thirdDown.depositAmount))
 check('deposit + balance loses nothing', thirdDown.depositAmount + thirdDown.balanceAmount === thirdDown.total)
-const odd = quoteTotals({ ...result.record, deliverables: [{ id: 'x', description: 'odd', quantity: 7, unitPrice: 3333 }] })
+const odd = quoteTotals({ ...priced, deliverables: [{ id: 'x', description: 'odd', quantity: 7, unitPrice: 3333 }] })
 check('odd line still totals exactly', odd.total === 23331, String(odd.total))
 
 // -- Redaction (CLAUDE.md §3) ----------------------------------------------
@@ -203,7 +228,7 @@ check('a deposit is spelled out in euros', depositSummary.includes('40% deposit 
 
 
 // -- Scope defense (CLAUDE.md §6, Phase 2) ----------------------------------
-const base = result.ok ? result.record : blank
+const base = priced
 const incoming = parseFollowUp(SCOPE_CREEP_MESSAGE, base.sourceThread)
 
 check('the follow-up is renumbered past the thread', incoming[0].id === 'msg_3', incoming.map((m) => m.id).join(','))
@@ -228,10 +253,12 @@ if (scope.ok) {
 const none = validateScopeFlags('{"flags": []}', base.id, incoming)
 check('no differences is a success, not an error', none.ok && none.flags.length === 0)
 
-// A number with nothing behind it is the failure §8 exists to stop.
-const unsourced = validateScopeFlags(JSON.stringify({ flags: [{ whatWasAsked: 'A 30s cutdown', differenceFromRecord: 'The record lists 15s reels.', source: { quote: 'a 30s cutdown for the youtube pre-roll', messageId: 'msg_3' }, suggestedPriceCents: 40000, priceBasis: null }] }), base.id, incoming)
-check('a price with no basis is dropped', unsourced.ok && unsourced.flags[0].suggestedPrice === null)
-check('...and the user is told why', unsourced.ok && unsourced.warnings.some((w) => w.includes('which line it came from')))
+// Scope-value estimation is at OBSERVE too (§5): any price is refused,
+// basis or no basis, and the refusal is said out loud.
+const unsourced = validateScopeFlags(JSON.stringify({ flags: [{ whatWasAsked: 'A 30s cutdown', differenceFromRecord: 'The record lists 15s reels.', source: { quote: 'a 30s cutdown for the youtube pre-roll', messageId: 'msg_3' }, suggestedPriceCents: 40000, priceBasis: 'priced from the reels line' }] }), base.id, incoming)
+check('a volunteered scope price is refused even with a basis', unsourced.ok && unsourced.flags[0].suggestedPrice === null && unsourced.flags[0].priceBasis === null)
+check('...and the user is told why', unsourced.ok && unsourced.warnings.some((w) => w.includes("Backpay doesn't price your work")))
+check('...and the flag itself survives', unsourced.ok && unsourced.flags.length === 1)
 
 // No quote, no flag.
 const unquoted = validateScopeFlags(JSON.stringify({ flags: [{ whatWasAsked: 'Something', differenceFromRecord: 'Not in the record.', source: { quote: 'words nobody wrote', messageId: 'msg_3' } }] }), base.id, incoming)
@@ -353,6 +380,98 @@ check('the invoice text carries its number and dates', invText.includes('Invoice
 check('...shows the deduction as a negative, not as a gap', invText.includes('Less deposit invoiced (2026-001)') && invText.includes(formatEuros(-80000)))
 check('...totals what is actually due', invText.includes('Total due: ' + formatEuros(120000)))
 check('every document says VAT is not calculated', [qText, scopeText, invText].every((t) => t.includes('VAT is not included or calculated')))
+
+
+// -- The capability ladder (CLAUDE.md §5) -----------------------------------
+check('everything starts at OBSERVE', DEFAULT_CAPABILITIES.every((c) => c.stage === 'observe'))
+check('...with no override history and no promotion date',
+  DEFAULT_CAPABILITIES.every((c) => c.overrideHistory.length === 0 && c.promotedAt === null))
+
+const pricingCap = DEFAULT_CAPABILITIES.find((c) => c.name === 'pricing')!
+check('nothing is promotable below the evidence floor', !canPromote(pricingCap, EVIDENCE_FLOOR - 1))
+check('pricing becomes promotable at the floor', canPromote(pricingCap, EVIDENCE_FLOOR))
+
+const atRecall = promote(pricingCap)
+check('promotion moves exactly one rung', atRecall.stage === 'recall')
+check('...and stamps when', atRecall.promotedAt !== null)
+check('PRICING CANNOT GO PAST RECALL, however much history there is',
+  !canPromote(atRecall, 999))
+
+const scopeCap = DEFAULT_CAPABILITIES.find((c) => c.name === 'scope-value')!
+check('other capabilities may go further', canPromote(promote(scopeCap), 999))
+
+// Demotion only fires where something is actually being proposed.
+const proposing = { ...scopeCap, stage: 'propose' as const }
+let walked = proposing
+for (let i = 0; i < 5; i++) walked = recordOutcome(walked, true).capability
+check('five overrides inside the window do not demote yet', walked.stage === 'propose')
+const sixth = recordOutcome(walked, true)
+check('the sixth does', sixth.capability.stage === 'recall')
+check('...and says why in plain language',
+  (sixth.demotedBecause ?? '').includes('so I') && (sixth.demotedBecause ?? '').includes('6'),
+  sixth.demotedBecause ?? 'nothing said')
+check('...and the new stage starts with a clean slate',
+  sixth.capability.overrideHistory.length === 0)
+
+let accepting = proposing
+for (let i = 0; i < 8; i++) accepting = recordOutcome(accepting, false).capability
+check('accepting proposals never demotes', accepting.stage === 'propose')
+
+let atObserve = DEFAULT_CAPABILITIES[0]
+for (let i = 0; i < 6; i++) atObserve = recordOutcome(atObserve, true).capability
+check('OBSERVE cannot be demoted by overrides — nothing was proposed',
+  atObserve.stage === 'observe' && atObserve.overrideHistory.length === 0)
+
+// -- The learning corpus (§5, §6) -------------------------------------------
+let log: PriceEntry[] = []
+log = logPrice(log, priced, 'Vertical reel, 15s', 180000, 'user', '2026-03-01T10:00:00.000Z')
+check('a price the user enters is logged', log.length === 1 && log[0].amount === 180000)
+check('...as theirs, not as a proposal', log[0].enteredBy === 'user')
+
+// Typing 1, 18, 180 fires three changes. Only the last is a decision.
+log = logPrice(log, priced, 'Vertical reel, 15s', 190000, 'user', '2026-03-01T10:00:05.000Z')
+check('keystrokes collapse into one decision', log.length === 1 && log[0].amount === 190000)
+
+log = logPrice(log, priced, 'Vertical reel, 15s', 200000, 'user', '2026-03-01T11:00:00.000Z')
+check('a later change is a separate decision', log.length === 2)
+
+log = logPrice(log, priced, '   ', 500000, 'user', '2026-03-02T10:00:00.000Z')
+check('a price on an unnamed line teaches nothing and is not logged', log.length === 2)
+
+// Comparables: the rows themselves, never a summary.
+const corpus: PriceEntry[] = [
+  { recordId: 'r1', deliverableDescription: '3 vertical reels, 15s', amount: 180000, enteredBy: 'user', enteredAt: '2026-03-01T10:00:00.000Z' },
+  { recordId: 'r2', deliverableDescription: '2 vertical reels, 20s', amount: 140000, enteredBy: 'user', enteredAt: '2026-01-04T10:00:00.000Z' },
+  { recordId: 'r3', deliverableDescription: 'Photography day rate', amount: 90000, enteredBy: 'user', enteredAt: '2026-02-01T10:00:00.000Z' },
+  { recordId: 'r4', deliverableDescription: '4 vertical reels, 15s', amount: 220000, enteredBy: 'user', enteredAt: '2026-04-01T10:00:00.000Z' },
+]
+const near = comparables(corpus, '3 vertical reels, 15s, for launch')
+check('comparables find the user’s own reel projects', near.length === 3, String(near.length))
+check('...and leave unrelated work out', !near.some((e) => e.deliverableDescription.includes('Photography')))
+check('...best match first', near[0].deliverableDescription === '3 vertical reels, 15s')
+check('...returning ROWS, never an average', near.every((e) => typeof e.recordId === 'string' && typeof e.enteredAt === 'string'))
+check('the current record is excluded from its own comparables',
+  comparables(corpus, 'vertical reels', 'r1').every((e) => e.recordId !== 'r1'))
+check('nothing comparable means nothing shown, not a guess',
+  comparables(corpus, 'Voiceover recording').length === 0)
+
+// -- No output may compute an average (§5) ----------------------------------
+const everyOutput = [
+  agreedSummary(priced),
+  quoteText(priced, sender, '2026-08-27'),
+  scopeSummaryText(priced, []),
+  agreedReplyText(priced),
+]
+check('no document says "average", "median", "typical" or "usually"',
+  everyOutput.every((t) => !/\b(average|median|typical|usually|on average|per hour|hourly)\b/i.test(t)))
+
+// -- A partly priced record is normal, not broken ---------------------------
+const partial = agreedSummary(priced)
+check('the summary says how many lines are still to price',
+  partial.includes('1 line still to price'), partial.split(String.fromCharCode(10)).find((l) => l.includes('still to price')) ?? 'nothing said')
+check('...and never prints a zero for the blank one', !hasZeroPricedLine(partial))
+check('the quote text says it too', quoteText(priced, sender, '2026-08-27').includes('still to price'))
+check('so does the reply', agreedReplyText(priced).includes('still to price'))
 
 
 // -- Dates -----------------------------------------------------------------

@@ -2,25 +2,29 @@ import { formatEuros } from '../lib/money'
 import { formatDate } from '../lib/quote'
 import type { Message, ProjectRecord } from '../types'
 
-/** What we ask for. `whatWasAsked` is the work, phrased for an invoice line;
- *  `differenceFromRecord` is the private note to the user. They are separate
- *  because §8 forbids a change order from restating the flag. */
+/**
+ * What we ask for. `whatWasAsked` is the work, phrased for an invoice line;
+ * `differenceFromRecord` is the private note to the user. They are separate
+ * because §9 forbids a change order from restating the flag.
+ *
+ * No price field. Scope-value estimation is at OBSERVE (§5) — the model says
+ * what changed, the user says what it is worth.
+ */
 export const SCOPE_SCHEMA = `{
   "flags": [
     {
       "whatWasAsked": string,
       "differenceFromRecord": string,
-      "source": { "quote": string, "messageId": string },
-      "suggestedPriceCents": integer | null,
-      "priceBasis": string | null
+      "source": { "quote": string, "messageId": string }
     }
   ]
 }`
 
 function renderRecord(record: ProjectRecord): string {
   const lines = record.deliverables.map((d) => {
-    const price =
-      d.unitPrice > 0 ? formatEuros(d.unitPrice) + ' each' : 'no price set'
+    // The record's own prices go in as context so the model can see what is
+    // already covered. It is not asked to extend them into a new number.
+    const price = d.unitPrice === null ? 'not priced' : formatEuros(d.unitPrice)
     return `- ${d.description || 'untitled line'} (quantity ${d.quantity}) — ${price}`
   })
   return [
@@ -70,9 +74,9 @@ Rules:
 3. "whatWasAsked" is a short, neutral description of the work itself, written the way it would appear on an invoice line: "30s cutdown for YouTube pre-roll". Not a characterisation, not a complaint.
 4. "differenceFromRecord" states the difference and then stops. "The record lists 3 reels. This message asks for 5." Never describe what the client intended, wanted, assumed, expected or was trying to do — you do not know, and neither do we. Never suggest what the freelancer should do about it. They will decide, and billing is not the only right answer.
 5. "source" is a VERBATIM substring of the new message body, copied character for character, not paraphrased or re-punctuated, plus its messageId. If you cannot quote it, do not raise the flag at all.
-6. "suggestedPriceCents" must come from a rate that is ALREADY in the record above. If the record prices a 15s reel, a further 15s reel is that price. Name the line you used in "priceBasis", e.g. "priced from the 3 vertical reels line".
-7. If nothing in the record supports a price, return null for BOTH "suggestedPriceCents" and "priceBasis". Do not estimate, do not use a market rate, do not guess from the size of the job. An empty box the freelancer fills in is correct; an invented number is not.
-8. A use the record does not grant — a new territory, a paid ad, a longer term — is a flag like any other. Price it null unless the record actually prices usage.
+6. NEVER PRICE ANYTHING. There is no price field and you are not being asked what this is worth. Do not estimate, do not extend a rate from the record, do not use a market rate, do not guess from the size of the job, and do not put an amount in "whatWasAsked". An empty box the freelancer fills in is correct; a number you supplied is not, however reasonable it looks.
+7. Do not say whether the difference is large or small, significant or minor, or worth raising. Size is a judgement about money and it is theirs.
+8. A use the record does not grant — a new territory, a paid ad, a longer term — is a flag like any other. Raise it the same way, and say nothing about what it is worth.
 9. Do not use the phrases "scope creep", "trying to", "should", "push back", "getting away with", or "for free" anywhere in your output. Describe the difference, not the person.`
 }
 

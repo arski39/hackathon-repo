@@ -5,6 +5,6 @@ import { defineConfig } from 'vite'
 // The base path must match the GitHub Pages repo name, or every asset 404s.
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/backpay/',
+  base: '/hackathon-repo/',
   plugins: [react(), tailwindcss()],
 })

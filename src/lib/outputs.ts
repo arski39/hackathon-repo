@@ -1,13 +1,13 @@
 import { invoiceTotal, KIND_LABEL } from './invoices'
-import { formatEuros } from './money'
+import { formatEuros, formatPrice, lineTotalOf } from './money'
 import { formatDate, quoteTotals, quoteValidUntil, today } from './quote'
 import type { Invoice, ProjectRecord, ScopeFlag } from '../types'
 
-/** Every output goes through this, so a price nobody set never reaches a
- *  document. A zero on something a client reads is the user agreeing to free
- *  work by accident (CLAUDE.md §5). */
-function priceOrGap(cents: number, gap = 'price not set'): string {
-  return cents > 0 ? formatEuros(cents) : gap
+/** How many lines are still to price, stated rather than hidden. A total that
+ *  quietly omits a line reads as finished when it isn't (CLAUDE.md §6). */
+function stillToPrice(count: number): string | null {
+  if (count === 0) return null
+  return `${count} line${count === 1 ? '' : 's'} still to price, not included above.`
 }
 
 function header(record: ProjectRecord, title: string): string[] {
@@ -33,10 +33,12 @@ export function quoteText(
 
   for (const line of totals.lines) {
     const count = line.quantity > 1 ? `${line.quantity} × ` : ''
-    lines.push(`- ${count}${line.description || 'Untitled line'} — ${priceOrGap(line.lineTotal)}`)
+    lines.push(`- ${count}${line.description || 'Untitled line'} — ${formatPrice(line.lineTotal)}`)
   }
   lines.push('')
   lines.push(`Total: ${formatEuros(totals.total)}`)
+  const quoteGap = stillToPrice(totals.unpricedCount)
+  if (quoteGap) lines.push(quoteGap)
 
   const { depositPercent, netDays } = record.paymentTerms
   lines.push(
@@ -82,18 +84,19 @@ export function scopeSummaryText(record: ProjectRecord, flags: ScopeFlag[]): str
   lines.push('Agreed at the start')
   for (const line of totals.lines) {
     const count = line.quantity > 1 ? `${line.quantity} × ` : ''
-    lines.push(`- ${count}${line.description || 'Untitled line'} — ${priceOrGap(line.lineTotal)}`)
+    lines.push(`- ${count}${line.description || 'Untitled line'} — ${formatPrice(line.lineTotal)}`)
   }
   lines.push(`Agreed total: ${formatEuros(totals.total)}`)
+  const scopeGap = stillToPrice(totals.unpricedCount)
+  if (scopeGap) lines.push(scopeGap)
 
   if (billed.length > 0) {
     lines.push('')
     lines.push('Added since, and invoiced separately')
     let extra = 0
     for (const flag of billed) {
-      const price = flag.suggestedPrice ?? 0
-      extra += Math.max(0, price)
-      lines.push(`- ${flag.whatWasAsked} — ${priceOrGap(price, 'price to confirm')}`)
+      extra += flag.suggestedPrice ?? 0
+      lines.push(`- ${flag.whatWasAsked} — ${formatPrice(flag.suggestedPrice, 'price to confirm')}`)
     }
     lines.push(`Additional total: ${formatEuros(extra)}`)
   }
@@ -136,14 +139,16 @@ export function agreedReplyText(record: ProjectRecord): string {
 
   for (const item of record.deliverables) {
     const count = item.quantity > 1 ? `${item.quantity} × ` : ''
-    const total = item.quantity * item.unitPrice
-    lines.push(`- ${count}${item.description || 'Untitled line'} — ${priceOrGap(total)}`)
+    const total = lineTotalOf(item.quantity, item.unitPrice)
+    lines.push(`- ${count}${item.description || 'Untitled line'} — ${formatPrice(total)}`)
     const quote = item.priceSource?.quote ?? item.source?.quote
     if (quote) lines.push(`  from: "${quote}"`)
   }
 
   lines.push('')
   lines.push(`Total: ${formatEuros(totals.total)}`)
+  const replyGap = stillToPrice(totals.unpricedCount)
+  if (replyGap) lines.push(replyGap)
 
   if (record.deadline) {
     lines.push(`Delivery: ${formatDate(record.deadline)}`)
@@ -202,10 +207,10 @@ export function invoiceText(
 
   for (const line of invoice.lineItems) {
     const count = line.quantity > 1 ? `${line.quantity} × ` : ''
-    const total = line.quantity * line.unitPrice
-    // A deduction is negative and must show as one, not as "price not set".
-    const money = total === 0 ? 'price not set' : formatEuros(total)
-    lines.push(`- ${count}${line.description || 'Untitled line'} — ${money}`)
+    // A deduction is negative and must show as one. A genuine zero shows as
+    // zero. Only null is "not priced" (section 6).
+    const total = lineTotalOf(line.quantity, line.unitPrice)
+    lines.push(`- ${count}${line.description || 'Untitled line'} — ${formatPrice(total)}`)
   }
 
   lines.push('')

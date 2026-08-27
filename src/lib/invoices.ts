@@ -1,4 +1,5 @@
 import { newId } from './id'
+import { lineTotalOf } from './money'
 import { addDays, quoteTotals, today } from './quote'
 import type { Deliverable, Invoice, ProjectRecord, ScopeFlag } from '../types'
 
@@ -122,8 +123,17 @@ export function changeOrderInvoice(
   return build(record, number, 'change-order', lines, issuedAt)
 }
 
+/** Unpriced lines are not zero and are not dropped — they simply are not in
+ *  the total, and `unpricedLines` says how many (section 6). */
 export function invoiceTotal(invoice: Invoice): number {
-  return invoice.lineItems.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0)
+  return invoice.lineItems.reduce(
+    (sum, l) => sum + (lineTotalOf(l.quantity, l.unitPrice) ?? 0),
+    0,
+  )
+}
+
+export function unpricedLines(invoice: Invoice): number {
+  return invoice.lineItems.filter((l) => l.unitPrice === null).length
 }
 
 export function isOverdue(invoice: Invoice, on = today()): boolean {

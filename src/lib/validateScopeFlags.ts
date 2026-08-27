@@ -15,14 +15,6 @@ function asText(v: unknown): string | null {
   return typeof v === 'string' && v.trim() !== '' ? v.trim() : null
 }
 
-function asInt(v: unknown): number | null {
-  if (typeof v === 'number' && Number.isFinite(v)) return Math.round(v)
-  if (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v))) {
-    return Math.round(Number(v))
-  }
-  return null
-}
-
 /** Words the prompt bans. Checked rather than trusted: a flag that editorialises
  *  is worse than no flag, because it puts an opinion the user never asked for
  *  next to a button that charges their client (§8). */
@@ -32,9 +24,8 @@ const LOADED = /\b(scope creep|trying to|you should|push back|getting away|for f
  * Model output into ScopeFlags — CLAUDE.md §8.
  *
  * Zero flags is a valid, common answer and is never an error. What *is*
- * rejected: a flag with no verifiable quote, and a price with nothing behind
- * it. §8 forbids a monetary figure the user cannot trace, so a price arriving
- * without a basis is dropped rather than shown.
+ * rejected: a flag with no verifiable quote, and any price at all — §5 puts
+ * scope-value estimation at OBSERVE, so the number is the user's to type.
  */
 export function validateScopeFlags(
   raw: string,
@@ -97,17 +88,14 @@ export function validateScopeFlags(
       )
     }
 
-    let suggestedPrice = asInt(item.suggestedPriceCents)
-    let priceBasis = asText(item.priceBasis)
-    if (suggestedPrice !== null && suggestedPrice < 0) suggestedPrice = null
-    if (suggestedPrice !== null && !priceBasis) {
-      // A number with nothing behind it is the exact failure §8 exists to stop.
+    // Scope-value estimation is at OBSERVE (section 5). The schema has no price
+    // field; if one arrives anyway it is dropped, and the user is told rather
+    // than left wondering why a number they glimpsed is gone.
+    if (item.suggestedPriceCents !== undefined && item.suggestedPriceCents !== null) {
       warnings.push(
-        `Dropped the suggested price for "${whatWasAsked}": it didn't say which line it came from.`,
+        `Ignored a price for "${whatWasAsked}". Backpay doesn't price your work — that one's yours.`,
       )
-      suggestedPrice = null
     }
-    if (suggestedPrice === null) priceBasis = null
 
     return [
       {
@@ -122,11 +110,9 @@ export function validateScopeFlags(
           ? 'The record does not cover this.'
           : differenceFromRecord,
         source,
-        suggestedPrice,
-        priceBasis,
-        // Defaults to the billable price and edits downward: people absorb at a
-        // goodwill value below what they would have charged (§5).
-        estimatedValue: suggestedPrice,
+        suggestedPrice: null,
+        priceBasis: null,
+        estimatedValue: null,
         status: 'open',
       },
     ]

@@ -1,4 +1,4 @@
-// The data model — CLAUDE.md §5. Everything else derives from this file.
+// The data model — CLAUDE.md §6. Everything else derives from this file.
 
 export type Provenance = {
   quote: string        // exact substring from the source thread
@@ -9,14 +9,17 @@ export type Deliverable = {
   id: string
   description: string  // "3 vertical reels, 15s each"
   quantity: number
-  unitPrice: number    // in cents, always
+  /** Cents. null means nobody has decided yet; 0 means the work is genuinely
+   *  free. They are different facts and must never share a value (section 6). */
+  unitPrice: number | null
   source?: Provenance
-  /** Additive: the budget is usually stated in a different sentence from the
-   *  deliverable itself, and section 12 requires every number be traceable. */
+  /** The sentence where money was mentioned. Under the capability ladder this
+   *  is the whole point of the price row: the field is blank and this quote
+   *  sits beside it as evidence. Reading what the client said is not pricing. */
   priceSource?: Provenance
 }
 
-/** Section 7 requires provenance on *every* extracted field, but the section 5
+/** Section 8 requires provenance on *every* extracted field, but the section 5
  *  model only carries `source` on Deliverable. This is the additive companion:
  *  a quote for each scalar field the model filled in. Optional, so a record built
  *  by hand is still a valid record. */
@@ -127,13 +130,15 @@ export type AbsorbedItem = {
   id: string
   recordId: string
   description: string
-  estimatedValue: number       // cents
+  /** Cents, frozen at the moment of absorbing. null when the user absorbed it
+   *  without putting a value on it — allowed, and common. */
+  estimatedValue: number | null
   absorbedAt: string           // ISO date
   /** Why, in the user's own words. Never leaves the app. */
   note: string
 }
 
-// ─── Section 13: client memory and themes ──────────────────────────────────
+// ─── Section 14: client memory and themes ──────────────────────────────────
 // Not built until Phase 6 ships. Defined now so that records written to
 // localStorage before then already point at a client and never need migrating.
 
@@ -170,6 +175,10 @@ export type LearnedNumber = {
  * invoices is an anecdote, not a median, and presenting it as one would be
  * exactly the kind of thing this product exists to stop.
  */
+/** NOTE: superseded in part by section 5's "never show an average" rule. The
+ *  median fields below compute a summary where the spec now requires the rows
+ *  themselves. Rework into row lists before any of section 14 is built — the
+ *  three-data-point floor stays, the median does not. */
 export type ClientInsight = {
   clientId: string
   recordsCount: number
@@ -194,4 +203,45 @@ export type Theme = {
   medianUnitPrice: LearnedNumber | null
   lowestUnitPrice: number
   highestUnitPrice: number
+}
+
+// ─── Section 5: the capability ladder ──────────────────────────────────────
+// The AI never sets prices. It earns the right to help with them, one
+// capability at a time, and only when the user says so.
+
+export type Stage = 'observe' | 'recall' | 'propose' | 'draft'
+
+export const STAGE_ORDER: Stage[] = ['observe', 'recall', 'propose', 'draft']
+
+export type CapabilityName = 'pricing' | 'scope-value' | 'chase-tone'
+
+export type Capability = {
+  name: CapabilityName
+  stage: Stage
+  /** One entry per proposal the user acted on: true means they overrode it.
+   *  Past half across the recent window the capability is demoted a stage and
+   *  told to the user in plain language. Empty until PROPOSE exists — there is
+   *  nothing to override before something is proposed. */
+  overrideHistory: boolean[]
+  promotedAt: string | null
+}
+
+/**
+ * The learning corpus. Every price the user enters or changes appends a row.
+ *
+ * This is the *only* thing RECALL may draw on, and the only thing PROPOSE would
+ * be allowed to derive from. Nothing here comes from the model, from a market
+ * rate, or from anywhere outside this browser — it is a log of decisions the
+ * user made, which is exactly what makes it citable back to them.
+ *
+ * Separate from the records on purpose: a comparable is looked up *across*
+ * projects, and a record's price can be edited afterwards while the history of
+ * what was decided, and when, should not move.
+ */
+export type PriceEntry = {
+  recordId: string
+  deliverableDescription: string
+  amount: number                // cents
+  enteredBy: 'user' | 'proposed-accepted' | 'proposed-overridden'
+  enteredAt: string             // ISO
 }

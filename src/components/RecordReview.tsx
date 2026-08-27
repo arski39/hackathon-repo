@@ -4,12 +4,13 @@ import { Field } from './Field'
 import { MoneyInput } from './MoneyInput'
 import { SourceButton } from './SourceButton'
 import { ThreadColumn } from './ThreadColumn'
-import { formatEuros } from '../lib/money'
+import { formatEuros, formatPrice, lineTotalOf } from '../lib/money'
 import { agreedSummary } from '../lib/summary'
 import { newId } from '../lib/id'
+import { logPrice } from '../lib/priceLog'
 import { useConnector } from '../lib/useConnector'
 import type { ActiveSource, ProvenanceApi } from '../lib/provenance'
-import type { ProjectRecord, Deliverable } from '../types'
+import type { PriceEntry, ProjectRecord, Deliverable } from '../types'
 
 const input =
   'w-full rounded-md border border-line bg-white px-2.5 py-1.5 focus:border-slate/50'
@@ -25,6 +26,8 @@ type Props = {
   onSeeQuote: () => void
   onAddMessage: () => void
   openFlags: number
+  priceLog: PriceEntry[]
+  onPriceLogChange: (log: PriceEntry[]) => void
 }
 
 export function RecordReview({
@@ -35,6 +38,8 @@ export function RecordReview({
   onSeeQuote,
   onAddMessage,
   openFlags,
+  priceLog,
+  onPriceLogChange,
 }: Props) {
   const [pinned, setPinned] = useState<ActiveSource | null>(null)
   const [transient, setTransient] = useState<ActiveSource | null>(null)
@@ -69,8 +74,14 @@ export function RecordReview({
       ),
     })
 
-  const subtotal = useMemo(
-    () => record.deliverables.reduce((sum, d) => sum + d.quantity * d.unitPrice, 0),
+  const totals = useMemo(
+    () => ({
+      priced: record.deliverables.reduce(
+        (sum, d) => sum + (lineTotalOf(d.quantity, d.unitPrice) ?? 0),
+        0,
+      ),
+      unpriced: record.deliverables.filter((d) => d.unitPrice === null).length,
+    }),
     [record.deliverables],
   )
 
@@ -221,6 +232,13 @@ export function RecordReview({
               <legend className="px-1 text-sm font-medium tracking-wide text-slate uppercase">
                 Deliverables
               </legend>
+              {/* The blank price is the product working, not a gap. Said once,
+                  here, so nobody reads it as something that failed to load. */}
+              <p className="mb-3 text-sm text-slate">
+                Prices are blank because Backpay doesn&rsquo;t price your work.
+                Where the thread mentions money, the line is quoted underneath
+                so you can see what they said before you decide.
+              </p>
               <ul className="space-y-4">
                 {record.deliverables.map((item) => (
                   <li key={item.id} className="space-y-2">
@@ -282,9 +300,16 @@ export function RecordReview({
                           <MoneyInput
                             id={`${item.id}-price`}
                             value={item.unitPrice}
-                            onChange={(cents) =>
+                            onChange={(cents) => {
                               setDeliverable(item.id, { unitPrice: cents })
-                            }
+                              // Clearing a price is not a decision about what
+                              // the work is worth, so it teaches nothing.
+                              if (cents !== null) {
+                                onPriceLogChange(
+                                  logPrice(priceLog, record, item.description, cents),
+                                )
+                              }
+                            }}
                           />
                         </div>
                         {hasThread ? (
@@ -300,7 +325,13 @@ export function RecordReview({
                       </div>
 
                       <p className="ml-auto font-mono tabular-nums">
-                        {formatEuros(item.quantity * item.unitPrice)}
+                        {item.unitPrice === null ? (
+                          <span className="font-sans text-sm text-slate">
+                            not priced yet
+                          </span>
+                        ) : (
+                          formatPrice(lineTotalOf(item.quantity, item.unitPrice))
+                        )}
                       </p>
 
                       {record.deliverables.length > 1 ? (
@@ -337,7 +368,7 @@ export function RecordReview({
                           id: newId('dlv'),
                           description: '',
                           quantity: 1,
-                          unitPrice: 0,
+                          unitPrice: null,
                         },
                       ],
                     })
@@ -347,8 +378,15 @@ export function RecordReview({
                   Add a line
                 </button>
                 <p className="font-mono tabular-nums">
-                  <span className="mr-3 font-sans text-sm text-slate">Total</span>
-                  {formatEuros(subtotal)}
+                  <span className="mr-3 font-sans text-sm text-slate">
+                    {totals.unpriced > 0 ? 'Priced so far' : 'Total'}
+                  </span>
+                  {formatEuros(totals.priced)}
+                  {totals.unpriced > 0 ? (
+                    <span className="ml-3 font-sans text-sm text-slate">
+                      {totals.unpriced} still to price
+                    </span>
+                  ) : null}
                 </p>
               </div>
             </fieldset>

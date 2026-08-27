@@ -83,19 +83,24 @@ export function ScopeDefense({
   )
 
   const absorbedTotal = record.absorbedWork.reduce(
-    (sum, item) => sum + item.estimatedValue,
+    (sum, item) => sum + (item.estimatedValue ?? 0),
     0,
   )
+  const absorbedUnvalued = record.absorbedWork.filter(
+    (item) => item.estimatedValue === null,
+  ).length
 
   const patchFlag = (id: string, changes: Partial<ScopeFlag>) =>
     onFlagsChange(flags.map((f) => (f.id === id ? { ...f, ...changes } : f)))
 
-  const setPrice = (flag: ScopeFlag, cents: number) =>
+  // One number, two destinations: billing uses it as the price, absorbing
+  // freezes it as the value. Blank stays blank — the user can bill or absorb
+  // without deciding a figure, and the change order says "price to confirm"
+  // rather than inventing one (section 7, Phase 2).
+  const setPrice = (flag: ScopeFlag, cents: number | null) =>
     patchFlag(flag.id, {
       suggestedPrice: cents,
       estimatedValue: cents,
-      // The basis described the model's number. Once the user types their own
-      // it no longer does, and a stale basis is worse than none.
       priceBasis: null,
     })
 
@@ -104,7 +109,7 @@ export function ScopeDefense({
       id: absorbedIdFor(flag),
       recordId: record.id,
       description: flag.whatWasAsked,
-      estimatedValue: flag.estimatedValue ?? 0,
+      estimatedValue: flag.estimatedValue,
       absorbedAt: today(),
       note: '',
     }
@@ -463,6 +468,9 @@ export function ScopeDefense({
                 </span>{' '}
                 <span className="text-slate">
                   Work you did and did not bill. Nobody sees this but you.
+                  {absorbedUnvalued > 0
+                    ? ` ${absorbedUnvalued} more you haven’t put a value on.`
+                    : ''}
                 </span>
               </p>
             ) : null}
