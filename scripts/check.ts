@@ -2,7 +2,8 @@ import { parseThread } from '../src/lib/parseThread'
 import { validateDeal } from '../src/lib/validateDeal'
 import { HERO_THREAD } from '../src/fixtures/heroThread'
 import { DEMO_EXTRACTION } from '../src/fixtures/demoExtraction'
-import { formatEuros, centsFromEuros } from '../src/lib/money'
+import { formatEuros, centsFromEuros, vatOf } from '../src/lib/money'
+import { quoteTotals, addDays, quoteValidUntil, formatDate } from '../src/lib/quote'
 
 let failed = 0
 const check = (name: string, cond: boolean, extra = '') => {
@@ -29,7 +30,7 @@ const [reels, stills] = result.deal.deliverables
 check('reels line has a source', !!reels.source)
 check('reels PRICE has its own source', reels.priceSource?.quote === 'budget-ish 2k', reels.priceSource?.quote ?? 'none')
 check('reels price is 2000 EUR in cents', reels.unitPrice === 200000, String(reels.unitPrice))
-check('reels quantity is 3', reels.quantity === 3)
+check('reels are one bundled line, not 3 x 2000', reels.quantity === 1)
 check('stills line has a source', !!stills.source)
 check('stills price left at 0, unsourced', stills.unitPrice === 0 && !stills.priceSource)
 
@@ -67,6 +68,34 @@ const invented = validateDeal(
 )
 check('invented quote is dropped, not shown', invented.ok && !invented.deal.deliverables[0].source)
 check('...and the user is told', invented.ok && invented.warnings.length === 1, invented.ok ? invented.warnings.join('') : '')
+
+// -- Quote totals ----------------------------------------------------------
+const q = quoteTotals(result.deal)
+check('subtotal matches the stated budget', q.subtotal === 200000, formatEuros(q.subtotal))
+check('VAT at 25,5% of 2000', q.vat === 51000, formatEuros(q.vat))
+check('total is subtotal + VAT', q.total === q.subtotal + q.vat && q.total === 251000, formatEuros(q.total))
+check('no deposit stated, so deposit is 0', q.depositAmount === 0)
+check('balance is the whole total', q.balanceAmount === q.total)
+check('every total is an integer number of cents',
+  [q.subtotal, q.vat, q.total, q.depositAmount, q.balanceAmount].every(Number.isInteger))
+
+const withDeposit = quoteTotals({ ...result.deal, paymentTerms: { depositPercent: 40, netDays: 14 } })
+check('40% deposit of the gross total', withDeposit.depositAmount === 100400, formatEuros(withDeposit.depositAmount))
+check('deposit + balance === total', withDeposit.depositAmount + withDeposit.balanceAmount === withDeposit.total)
+
+// Rounding is where cents quietly go missing.
+check('VAT rounds, never truncates', vatOf(333, 25.5) === 85, String(vatOf(333, 25.5)))
+check('VAT of 1 cent', vatOf(1, 25.5) === 0, String(vatOf(1, 25.5)))
+const odd = quoteTotals({ ...result.deal, deliverables: [{ id: 'x', description: 'odd', quantity: 7, unitPrice: 3333 }] })
+check('odd line still totals exactly', odd.subtotal === 23331 && Number.isInteger(odd.vat), String(odd.subtotal))
+
+// -- Dates -----------------------------------------------------------------
+check('addDays crosses a month boundary', addDays('2026-08-27', 30) === '2026-09-26', addDays('2026-08-27', 30))
+check('addDays crosses a year boundary', addDays('2026-12-20', 30) === '2027-01-19', addDays('2026-12-20', 30))
+check('addDays handles a leap day', addDays('2028-02-28', 1) === '2028-02-29', addDays('2028-02-28', 1))
+check('quote is valid 30 days out', quoteValidUntil('2026-08-27') === '2026-09-26')
+check('dates spell the month out', formatDate('2026-09-12') === '12 September 2026', formatDate('2026-09-12'))
+check('null date renders a dash', formatDate(null) === '—')
 
 console.log(failed === 0 ? '\nAll checks passed.' : `\n${failed} FAILED`)
 process.exit(failed === 0 ? 0 : 1)
