@@ -176,7 +176,7 @@ riskier path, so it should be a deliberate choice.
 | Routing | **None** | State-based view switching. GitHub Pages 404s on client-side routes. Do not add react-router. |
 | State | React state + a `useLocalStorage` hook | |
 | Persistence | `localStorage` | Only. See §3. |
-| Fonts | Self-hosted woff2 in `public/fonts/` | Not a CDN. §3 forbids third-party requests. |
+| Fonts | Self-hosted woff2 in `src/fonts/` | Not a CDN — §3 forbids third-party requests. `src/`, not `public/`, so Vite fingerprints them and rewrites the URLs under `base`. |
 | PDF | Print stylesheet + `window.print()` | Do not add a PDF library. A well-styled print view is faster and looks better. |
 | Deploy | GitHub Actions → GitHub Pages | |
 | Lint | oxlint | Ships with the Vite template. `npm run lint`. |
@@ -510,8 +510,10 @@ side effect of another change.
   Every euro figure in the app is mono. This is functional (columns align) and it
   reads as a ledger.
 
-**Self-host them.** Download the woff2 files into `public/fonts/` and declare
-them with `@font-face`. §3 forbids third-party requests, and the Google Fonts CDN
+**Self-host them.** The woff2 files live in `src/fonts/` and are declared with
+`@font-face` at the top of `src/index.css`, with the `unicode-range` values
+Google ships, so a Finnish page never downloads the latin-ext subsets. Bricolage
+and Inter are variable fonts — one file per subset covers every weight. §3 forbids third-party requests, and the Google Fonts CDN
 is one — it hands Google the visitor's IP and the page they are on with every
 load. Both options are free; only one of them is consistent with §3.
 
