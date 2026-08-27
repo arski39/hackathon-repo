@@ -23,6 +23,8 @@ type Props = {
   onChange: (record: ProjectRecord) => void
   onStartOver: () => void
   onSeeQuote: () => void
+  onAddMessage: () => void
+  openFlags: number
 }
 
 export function RecordReview({
@@ -31,6 +33,8 @@ export function RecordReview({
   onChange,
   onStartOver,
   onSeeQuote,
+  onAddMessage,
+  openFlags,
 }: Props) {
   const [pinned, setPinned] = useState<ActiveSource | null>(null)
   const [transient, setTransient] = useState<ActiveSource | null>(null)
@@ -97,6 +101,18 @@ export function RecordReview({
             className="min-h-11 cursor-pointer rounded-md border border-line px-4 py-2 text-sm hover:border-slate/40"
           >
             {hasThread ? 'Paste a different thread' : 'Start over'}
+          </button>
+          <button
+            type="button"
+            onClick={onAddMessage}
+            className="min-h-11 cursor-pointer rounded-md border border-line px-4 py-2 text-sm hover:border-slate/40"
+          >
+            A new message came in
+            {openFlags > 0 ? (
+              <span className="ml-2 rounded-full bg-overdue/12 px-2 py-0.5 font-mono text-xs text-ink tabular-nums">
+                {openFlags}
+              </span>
+            ) : null}
           </button>
           <button
             type="button"

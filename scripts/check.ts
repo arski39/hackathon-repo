@@ -7,6 +7,13 @@ import { quoteTotals, addDays, quoteValidUntil, formatDate } from '../src/lib/qu
 import { redactMessages, restoreRecord, restoreText } from '../src/lib/redact'
 import { blankRecord } from '../src/lib/blankRecord'
 import { agreedSummary } from '../src/lib/summary'
+import { parseFollowUp } from '../src/lib/followUp'
+import { validateScopeFlags } from '../src/lib/validateScopeFlags'
+import { changeOrderText } from '../src/lib/changeOrder'
+import { restoreFlags, redactRecord } from '../src/lib/redact'
+import { DEMO_SCOPE_FLAGS } from '../src/fixtures/demoScopeFlags'
+import { SCOPE_CREEP_MESSAGE } from '../src/fixtures/heroThread'
+import type { ScopeFlag } from '../src/types'
 import type { Message } from '../src/types'
 
 let failed = 0
@@ -14,6 +21,12 @@ const check = (name: string, cond: boolean, extra = '') => {
   console.log(`${cond ? 'PASS' : 'FAIL'}  ${name}${extra ? ' — ' + extra : ''}`)
   if (!cond) failed++
 }
+
+/** Substring-matching a formatted euro figure is a trap: a two-thousand-euro
+ *  total ends with the same characters as a zero one, and the separator is a
+ *  non-breaking space. Check the line, not the document. */
+const hasZeroPricedLine = (text: string) =>
+  text.split(String.fromCharCode(10)).some((line) => line.trimEnd().endsWith('— ' + formatEuros(0)))
 
 const messages = parseThread(HERO_THREAD)
 check('parses hero thread into 2 messages', messages.length === 2, `got ${messages.length}`)
@@ -175,7 +188,7 @@ check('the summary names the project', summary.includes('What we agreed'))
 check('...lists the scope', summary.includes('Scope') && summary.includes('reels'))
 check('...states the total once', summary.includes('Total: ') && (summary.match(/Total: /g) ?? []).length === 1)
 check('...says the usage rights are missing rather than omitting it', summary.includes('Usage rights: not agreed yet'))
-check('...never prints 0,00 € for a price nobody set', !summary.includes('0,00 €') && summary.includes('price not set'))
+check('...never prints a zero price for a line nobody set', !hasZeroPricedLine(summary) && summary.includes('price not set'))
 check('...says VAT is not calculated', summary.includes('VAT is not included or calculated'))
 check('...mentions no client name that was redacted away', !summary.includes('[Client]'))
 
@@ -185,6 +198,85 @@ check('...with no deadline claimed', blankSummary.includes('Delivery: no date ag
 
 const depositSummary = agreedSummary({ ...blank, deliverables: [{ id: 'x', description: 'Film', quantity: 1, unitPrice: 100000 }], paymentTerms: { depositPercent: 40, netDays: 30 } })
 check('a deposit is spelled out in euros', depositSummary.includes('40% deposit of') && depositSummary.includes('net 30 days'))
+
+
+// -- Scope defense (CLAUDE.md §6, Phase 2) ----------------------------------
+const base = result.ok ? result.record : blank
+const incoming = parseFollowUp(SCOPE_CREEP_MESSAGE, base.sourceThread)
+
+check('the follow-up is renumbered past the thread', incoming[0].id === 'msg_3', incoming.map((m) => m.id).join(','))
+check('...and is attributed to the client', incoming.every((m) => m.from === 'client'))
+check('...ids never collide with the record thread', incoming.every((m) => !base.sourceThread.some((e) => e.id === m.id)))
+
+const scope = validateScopeFlags(DEMO_SCOPE_FLAGS, base.id, incoming)
+check('the demo scope fixture validates', scope.ok, scope.ok ? '' : scope.errors.join(' '))
+if (scope.ok) {
+  check('...into three differences', scope.flags.length === 3, String(scope.flags.length))
+  check('...with no warnings, so every quote is real', scope.warnings.length === 0, scope.warnings.join(' '))
+  check(
+    '...every quote verbatim in the message it cites',
+    scope.flags.every((f) => incoming.find((m) => m.id === f.source!.messageId)!.body.includes(f.source!.quote)),
+  )
+  check('...every price left null rather than invented', scope.flags.every((f) => f.suggestedPrice === null && f.priceBasis === null))
+  check('...all open to begin with', scope.flags.every((f) => f.status === 'open'))
+  check('...none of them characterises the client', scope.flags.every((f) => !/scope creep|trying to|should|for free/i.test(f.differenceFromRecord)))
+}
+
+// Zero differences is a real answer, not a failure.
+const none = validateScopeFlags('{"flags": []}', base.id, incoming)
+check('no differences is a success, not an error', none.ok && none.flags.length === 0)
+
+// A number with nothing behind it is the failure §8 exists to stop.
+const unsourced = validateScopeFlags(JSON.stringify({ flags: [{ whatWasAsked: 'A 30s cutdown', differenceFromRecord: 'The record lists 15s reels.', source: { quote: 'a 30s cutdown for the youtube pre-roll', messageId: 'msg_3' }, suggestedPriceCents: 40000, priceBasis: null }] }), base.id, incoming)
+check('a price with no basis is dropped', unsourced.ok && unsourced.flags[0].suggestedPrice === null)
+check('...and the user is told why', unsourced.ok && unsourced.warnings.some((w) => w.includes('which line it came from')))
+
+// No quote, no flag.
+const unquoted = validateScopeFlags(JSON.stringify({ flags: [{ whatWasAsked: 'Something', differenceFromRecord: 'Not in the record.', source: { quote: 'words nobody wrote', messageId: 'msg_3' } }] }), base.id, incoming)
+check('a flag we cannot quote is dropped entirely', unquoted.ok && unquoted.flags.length === 0)
+
+// Neutrality is enforced, not merely requested.
+const loaded = validateScopeFlags(JSON.stringify({ flags: [{ whatWasAsked: 'A 30s cutdown', differenceFromRecord: 'The client is trying to get a fourth video for free.', source: { quote: 'a 30s cutdown for the youtube pre-roll', messageId: 'msg_3' } }] }), base.id, incoming)
+check('an editorialising note is rewritten, not shown', loaded.ok && loaded.flags[0].differenceFromRecord === 'The record does not cover this.')
+check('...and the rewrite is disclosed', loaded.ok && loaded.warnings.some((w) => w.includes('rather than the difference')))
+
+const loadedLine = validateScopeFlags(JSON.stringify({ flags: [{ whatWasAsked: 'Free work they are trying to sneak in', differenceFromRecord: 'Not in the record.', source: { quote: 'a 30s cutdown for the youtube pre-roll', messageId: 'msg_3' } }] }), base.id, incoming)
+check('a characterisation never becomes an invoice line', loadedLine.ok && loadedLine.flags.length === 0)
+
+// -- The change order (§8: restates the work, never the flag) ---------------
+const billed: ScopeFlag[] = scope.ok
+  ? [
+      { ...scope.flags[0], status: 'billed', suggestedPrice: 40000 },
+      { ...scope.flags[1], status: 'billed' },
+      { ...scope.flags[2], status: 'dismissed' },
+    ]
+  : []
+const order = changeOrderText(base, billed)
+check('the change order lists the billed work', order.includes(billed[0].whatWasAsked))
+check('...and not the dismissed work', !order.includes(billed[2].whatWasAsked))
+check('...never restates why it was flagged', billed.every((f) => !order.includes(f.differenceFromRecord)))
+check('...never prints a zero price', !hasZeroPricedLine(order) && order.includes('price to confirm'))
+check('...totals only what is actually priced', order.includes('Additional so far: ' + formatEuros(40000)))
+check('an empty change order is empty, not a header', changeOrderText(base, []) === '')
+
+// -- Absorbing (§6, and the value stays private) ----------------------------
+const absorbed = agreedSummary({ ...base, absorbedWork: [{ id: 'abs_1', recordId: base.id, description: 'Story frames from the feed stills', estimatedValue: 25000, absorbedAt: '2026-08-27', note: 'long-term client' }] })
+check('absorbed work is listed in the summary', absorbed.includes('Also included, at no additional charge') && absorbed.includes('Story frames'))
+check('...but never priced there', !absorbed.includes(formatEuros(25000)))
+check('...and the private note never leaves', !absorbed.includes('long-term client'))
+
+// -- Redaction through the scope path ---------------------------------------
+const scopeRed = redactMessages([...base.sourceThread, ...incoming])
+const sentIncoming = scopeRed.messages.slice(-incoming.length)
+check('the follow-up is redacted too', sentIncoming.every((m) => !/nina/i.test(m.body)))
+const sentRecord = redactRecord(base, scopeRed.map)
+check('the record travelling with it is redacted', !/nina/i.test(sentRecord.clientName), sentRecord.clientName)
+const redFlags = validateScopeFlags(JSON.stringify({ flags: [{ whatWasAsked: 'A 30s cutdown', differenceFromRecord: 'Not in the record.', source: { quote: sentIncoming[0].body.slice(0, 40), messageId: sentIncoming[0].id } }] }), base.id, sentIncoming)
+check('a flag verifies against the redacted text that was sent', redFlags.ok && redFlags.flags.length === 1)
+if (redFlags.ok) {
+  const backFlag = restoreFlags(redFlags.flags, scopeRed.map)[0]
+  check('...and its quote is verbatim in the original message', incoming.some((m) => m.body.includes(backFlag.source!.quote)), backFlag.source!.quote)
+}
 
 
 // -- Dates -----------------------------------------------------------------

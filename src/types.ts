@@ -96,7 +96,13 @@ export type ScopeFlag = {
   id: string
   recordId: string
   messageId: string
+  /** The work itself, written the way it would go on an invoice line. This
+   *  is what a change order restates; section 8 forbids the change order
+   *  from restating the flag. */
   whatWasAsked: string
+  /** The verbatim sentence in the new message that raised the flag. Same
+   *  rule as everywhere else: verified before it is shown, never trusted. */
+  source?: Provenance
   /** Renamed from whyItsOutOfScope. The old name asks the model to justify a
    *  verdict; this one asks it to state a difference. Field names shape output,
    *  and section 8 requires these to be neutral and factual. */

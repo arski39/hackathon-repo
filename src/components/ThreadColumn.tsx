@@ -7,6 +7,10 @@ type Props = {
   active: ActiveSource | null
   markRef: React.RefObject<HTMLElement | null>
   scrollRef: React.RefObject<HTMLDivElement | null>
+  /** Phase 2 reuses this column for the follow-up message, where "the thread
+   *  you pasted" would be the wrong thing to call it. */
+  heading?: string
+  label?: string
 }
 
 /** Render the body, wrapping the active quote in a <mark>. If the quote isn't
@@ -34,7 +38,14 @@ function renderBody(
   )
 }
 
-export function ThreadColumn({ messages, active, markRef, scrollRef }: Props) {
+export function ThreadColumn({
+  messages,
+  active,
+  markRef,
+  scrollRef,
+  heading = 'What they sent',
+  label = 'The thread you pasted',
+}: Props) {
   const lastKey = useRef<string | null>(null)
 
   // Bring the highlight into view when a new field is selected, but never
@@ -60,9 +71,9 @@ export function ThreadColumn({ messages, active, markRef, scrollRef }: Props) {
   }, [active])
 
   return (
-    <section aria-label="The thread you pasted" className="min-w-0">
+    <section aria-label={label} className="min-w-0">
       <h2 className="font-display text-sm font-semibold tracking-wide text-slate uppercase">
-        What they sent
+        {heading}
       </h2>
       <div
         ref={scrollRef}

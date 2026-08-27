@@ -279,8 +279,9 @@ type ScopeFlag = {
   id: string;
   recordId: string;
   messageId: string;
-  whatWasAsked: string;
+  whatWasAsked: string;         // the work, phrased for an invoice line
   differenceFromRecord: string; // factual, neutral, private — see §8
+  source?: Provenance;          // the verbatim sentence that raised it
   suggestedPrice: number | null;    // cents. null when nothing in the record supports one.
   priceBasis: string | null;        // which line it was derived from. null with suggestedPrice.
   estimatedValue: number | null;    // cents. What it is worth if absorbed rather than billed.
@@ -316,6 +317,7 @@ provenance lines, because there is no thread, and no apology about it either.
 | `Deliverable.priceSource` | A deliverable and its price are almost never in the same sentence — the hero thread says "3 reels…" in one paragraph and "budget-ish 2k" three later. §1's demo moment is about tracing the *price* specifically. |
 | `ProjectRecord.clientId` | Added ahead of §13 so records already in `localStorage` never need migrating. Null until the user confirms which client it is. Phase 5 groups by `clientName`, not this. |
 | `Message.external` | Marks a message as imported rather than pasted, so it can be labelled and never double-imported (§13.3). |
+| `ScopeFlag.source` | §1 applies to a flag as much as to a price. `whatWasAsked` has to be clean enough for a change-order line, so it cannot double as the quote — the verbatim sentence needs its own field. No quote, no flag. |
 | `ScopeFlag.differenceFromRecord` | Renamed from `whyItsOutOfScope`. The old name asks the model to justify a verdict; the new one asks it to state a difference. Field names shape output, and §8 requires neutrality. |
 | `ScopeFlag.suggestedPrice` / `priceBasis` | Nullable, because §8 forbids generating a monetary figure the user cannot trace. A change-order price is derived from a rate already in the record, and `priceBasis` names which one. Nothing comparable in the record means `null`, an empty input, and the user's own number. |
 | `ScopeFlag.estimatedValue` | Defaults to `suggestedPrice` and is editable downward. People often absorb at a goodwill value below what they'd have charged, and forcing the two to be equal would inflate Phase 5's absorbed total. |
@@ -392,6 +394,15 @@ one is worth more than a working feature on day two.
   makes billing easy is lying about what actually happens, and it makes the user
   feel they failed every time they choose the normal option. The absorbed total
   is also the number that makes Phase 5 worth reading.
+- **One editable number per flag**, not two. `suggestedPrice` and
+  `estimatedValue` are separate on the model so the chosen value freezes at the
+  moment of the decision, but the screen shows one field: type what it is worth,
+  then choose what to do about it. Editing it clears `priceBasis` — a basis that
+  described the model's number is a lie once the user types their own.
+- **Absorbed work is listed in outputs but never priced there.** What the client
+  got is worth writing down; what it was worth is the user's own accounting and
+  belongs in the app and in Phase 5's total, not in a document that would read
+  as an invoice for goodwill.
 - **Ends sendable:** the change order draft when they bill it; the updated
   summary from Phase 1 in every case.
 
@@ -627,6 +638,19 @@ not a confirmation, and not a contract.
   the work and the price; it never restates the flag.
 - Price a change order from a rate already in the record and say which one
   (`priceBasis`). Nothing comparable in the record means `suggestedPrice: null`.
+  A price arriving without a basis is **dropped**, not shown — a number the user
+  cannot trace is the thing §8 exists to stop, and it does not stop being that
+  because the model sounded confident.
+- **`whatWasAsked` is the work; `source` is the quote.** `whatWasAsked` ends up
+  on a change order the client reads, so it has to be a clean invoice line. The
+  verbatim sentence lives in `source` and is verified like any other quote. If
+  the model cannot quote it, the flag is not raised at all.
+- **Neutrality is checked, not requested.** The prompt asks for factual wording;
+  the validator then tests for it. A note that characterises the client is
+  replaced with a neutral one and the substitution is disclosed — showing the
+  model's wording with a caveat underneath still shows it. A *characterisation*
+  in `whatWasAsked` drops the flag entirely, because there is no safe way to
+  rewrite editorial into something a client will read.
 
 ### For the chase email
 

@@ -1,6 +1,7 @@
 import { DEFAULT_NET_DAYS } from '../config'
 import { newId } from './id'
-import type { ProjectRecord, RecordFieldKey, RecordFieldSources, Deliverable, Message, Provenance } from '../types'
+import { checkProvenance } from './verifyQuote'
+import type { ProjectRecord, RecordFieldKey, RecordFieldSources, Deliverable, Message } from '../types'
 
 export type ValidationResult =
   | { ok: true; record: ProjectRecord; warnings: string[] }
@@ -44,32 +45,6 @@ function asInt(v: unknown): number | null {
 
 function asText(v: unknown): string | null {
   return typeof v === 'string' && v.trim() !== '' ? v.trim() : null
-}
-
-/** A quote only earns a provenance line if it really is in the thread.
- *  Rule 1 of the prompt is unenforceable without this check, and an
- *  unverifiable quote is exactly the thing the user is trusting us about. */
-function checkProvenance(
-  v: unknown,
-  messages: Message[],
-  label: string,
-  warnings: string[],
-): Provenance | undefined {
-  if (!isRecord(v)) return undefined
-  const quote = asText(v.quote)
-  const messageId = asText(v.messageId)
-  if (!quote || !messageId) return undefined
-
-  const named = messages.find((m) => m.id === messageId)
-  const inNamed = named?.body.includes(quote)
-  if (inNamed) return { quote, messageId }
-
-  // Right quote, wrong message id — recoverable, so repair it quietly.
-  const elsewhere = messages.find((m) => m.body.includes(quote))
-  if (elsewhere) return { quote, messageId: elsewhere.id }
-
-  warnings.push(`Dropped the source for ${label}: "${quote}" is not in the thread.`)
-  return undefined
 }
 
 /**

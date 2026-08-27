@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { RecordReview } from './components/RecordReview'
 import { QuoteView } from './components/QuoteView'
+import { ScopeDefense } from './components/ScopeDefense'
 import { SettingsPanel, type Settings } from './components/SettingsPanel'
 import { ThreadInput } from './components/ThreadInput'
 import { ApiError } from './lib/anthropic'
@@ -8,10 +9,10 @@ import { blankRecord } from './lib/blankRecord'
 import { parseThread } from './lib/parseThread'
 import { runExtraction } from './lib/runExtraction'
 import { useLocalStorage } from './lib/useLocalStorage'
-import type { ProjectRecord } from './types'
+import type { ProjectRecord, ScopeFlag } from './types'
 
 // No router: GitHub Pages 404s on client-side routes, so views switch on state.
-type View = 'input' | 'review' | 'quote'
+type View = 'input' | 'review' | 'quote' | 'scope'
 
 type Failure = { message: string; hint?: string; raw?: string }
 
@@ -34,6 +35,7 @@ export default function App() {
   const [thread, setThread] = useLocalStorage('backpay.draftThread', '')
   // Persisted, so a refresh mid-edit doesn't throw the work away.
   const [record, setRecord] = useLocalStorage<ProjectRecord | null>('backpay.record', null)
+  const [flags, setFlags] = useLocalStorage<ScopeFlag[]>('backpay.scopeFlags', [])
 
   const [view, setView] = useState<View>(record ? 'review' : 'input')
   const [warnings, setWarnings] = useState<string[]>([])
@@ -65,6 +67,7 @@ export default function App() {
       })
       if (outcome.kind === 'ok') {
         setRecord(outcome.record)
+        setFlags([])
         setWarnings(outcome.warnings)
         setView('review')
       } else {
@@ -128,6 +131,7 @@ export default function App() {
             onSubmit={readTheThread}
             onStartBlank={() => {
               setRecord(blankRecord())
+              setFlags([])
               setWarnings([])
               setFailure(null)
               setView('review')
@@ -144,6 +148,20 @@ export default function App() {
             onChange={setRecord}
             onStartOver={() => setView('input')}
             onSeeQuote={() => setView('quote')}
+            onAddMessage={() => setView('scope')}
+            openFlags={
+              flags.filter((f) => f.recordId === record.id && f.status === 'open')
+                .length
+            }
+          />
+        ) : view === 'scope' ? (
+          <ScopeDefense
+            record={record}
+            flags={flags}
+            settings={settings}
+            onRecordChange={setRecord}
+            onFlagsChange={setFlags}
+            onBack={() => setView('review')}
           />
         ) : (
           <QuoteView

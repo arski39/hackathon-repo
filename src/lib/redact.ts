@@ -1,4 +1,4 @@
-import type { Message, ProjectRecord, Provenance } from '../types'
+import type { Message, ProjectRecord, Provenance, ScopeFlag } from '../types'
 
 /**
  * Best-effort redaction — CLAUDE.md §3.
@@ -122,22 +122,61 @@ export function redactMessages(messages: Message[]): Redaction {
 
   if (map.size === 0) return { messages, map }
 
-  // Longest original first, so "Nina Korhonen" goes before the "Nina" in it.
-  const pairs = [...map.entries()].sort((a, b) => b[1].length - a[1].length)
-  const apply = (text: string) => {
-    let out = text
-    for (const [placeholder, original] of pairs) {
-      out = original.includes('@')
-        ? out.split(original).join(placeholder)
-        : out.replace(wordPattern(original, 'g'), placeholder)
-    }
-    return out
-  }
-
   return {
-    messages: messages.map((m) => ({ ...m, sender: apply(m.sender), body: apply(m.body) })),
+    messages: messages.map((m) => ({
+      ...m,
+      sender: redactText(m.sender, map),
+      body: redactText(m.body, map),
+    })),
     map,
   }
+}
+
+/**
+ * Apply a map from `redactMessages` to any other text.
+ *
+ * Phase 2 sends the record alongside the message, and the record carries the
+ * same names — redacting only the thread would put the client's name back on
+ * the wire in the next paragraph.
+ */
+export function redactText(text: string, map: Map<string, string>): string {
+  // Longest original first, so "Nina Korhonen" goes before the "Nina" in it.
+  const pairs = [...map.entries()].sort((a, b) => b[1].length - a[1].length)
+  let out = text
+  for (const [placeholder, original] of pairs) {
+    out = original.includes('@')
+      ? out.split(original).join(placeholder)
+      : out.replace(wordPattern(original, 'g'), placeholder)
+  }
+  return out
+}
+
+/** The record's own text fields, redacted for the trip out. Ids, money and
+ *  dates are untouched — there is nothing identifying in them. */
+export function redactRecord(record: ProjectRecord, map: Map<string, string>): ProjectRecord {
+  if (map.size === 0) return record
+  const text = (value: string) => redactText(value, map)
+  return {
+    ...record,
+    clientName: text(record.clientName),
+    projectName: text(record.projectName),
+    notes: text(record.notes),
+    usageRights: record.usageRights === null ? null : text(record.usageRights),
+    deliverables: record.deliverables.map((d) => ({ ...d, description: text(d.description) })),
+  }
+}
+
+/** Names back into the flags, including inside the quote each one rests on. */
+export function restoreFlags(flags: ScopeFlag[], map: Map<string, string>): ScopeFlag[] {
+  if (map.size === 0) return flags
+  const text = (value: string) => restoreText(value, map)
+  return flags.map((flag) => ({
+    ...flag,
+    whatWasAsked: text(flag.whatWasAsked),
+    differenceFromRecord: text(flag.differenceFromRecord),
+    priceBasis: flag.priceBasis === null ? null : text(flag.priceBasis),
+    source: flag.source ? { ...flag.source, quote: text(flag.source.quote) } : undefined,
+  }))
 }
 
 /** Reverse of `apply`. Exact substitution both ways, so a restored quote is

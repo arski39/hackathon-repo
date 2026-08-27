@@ -32,6 +32,20 @@ export function agreedSummary(record: ProjectRecord): string {
   }
   lines.push('')
 
+  // Absorbed work is listed, but never priced here.
+  //
+  // What the client got is a fair thing to write down, and the user is worth
+  // being seen to have delivered it. What it was worth is their own accounting
+  // — that belongs in the app and in Phase 5's absorbed total, not in a
+  // document that would read as an invoice for goodwill.
+  if (record.absorbedWork.length > 0) {
+    lines.push('Also included, at no additional charge')
+    for (const item of record.absorbedWork) {
+      lines.push(`- ${item.description.trim() || 'Additional work'}`)
+    }
+    lines.push('')
+  }
+
   lines.push(`Total: ${formatEuros(totals.total)}`)
 
   const { depositPercent, netDays } = record.paymentTerms
